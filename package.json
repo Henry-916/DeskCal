@@ -1,0 +1,83 @@
+{
+  "name": "deskcal",
+  "version": "0.5.0",
+  "description": "Windows desktop calendar with local schedules and reminders",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/calendar-core.js && node --check src/chinese-calendar.js && node --check src/quick-input.js && node --check src/planner-core.js && node --check src/data-model.js && node --check src/renderer/app.js && node --check tests/electron-smoke.js",
+    "test": "node --test tests/calendar-core.test.js tests/chinese-calendar.test.js tests/quick-input.test.js tests/planner-core.test.js tests/data-model.test.js tests/renderer-contract.test.js",
+    "smoke": "electron tests/electron-smoke.js",
+    "dist:win": "electron-builder --win nsis --x64"
+  },
+  "keywords": [
+    "calendar",
+    "reminder",
+    "windows",
+    "desktop"
+  ],
+  "author": "DeskCal",
+  "license": "MIT",
+  "homepage": "https://github.com/kangkangStudent/DeskCal#readme",
+  "bugs": {
+    "url": "https://github.com/kangkangStudent/DeskCal/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kangkangStudent/DeskCal.git"
+  },
+  "config": {
+    "electron_mirror": "https://npmmirror.com/mirrors/electron/"
+  },
+  "devDependencies": {
+    "electron": "43.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "lunar-javascript": "^1.7.7"
+  },
+  "build": {
+    "appId": "com.deskcal.windows",
+    "productName": "DeskCal",
+    "artifactName": "DeskCal-Setup-${version}-${arch}.${ext}",
+    "copyright": "Copyright © 2026 DeskCal",
+    "asar": true,
+    "compression": "maximum",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/deskcal-icon.png",
+      "LICENSE",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/deskcal-icon.ico",
+      "executableName": "DeskCal",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "DeskCal",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/deskcal-icon.ico",
+      "uninstallerIcon": "assets/deskcal-icon.ico",
+      "installerHeaderIcon": "assets/deskcal-icon.ico"
+    }
+  }
+}
