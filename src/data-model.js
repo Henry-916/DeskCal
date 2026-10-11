@@ -166,6 +166,16 @@ function migrateData(value, now = new Date()) {
   };
 }
 
+function validateBackup(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, reason: '备份数据必须是一个非空对象' };
+  }
+  if (!Array.isArray(value.events)) {
+    return { ok: false, reason: '备份数据必须包含日程数组 (events)' };
+  }
+  return { ok: true };
+}
+
 module.exports = {
   SCHEMA_VERSION,
   DEFAULT_CALENDAR_ID,
@@ -174,5 +184,6 @@ module.exports = {
   normalizeEvents,
   normalizeCalendar,
   normalizeCalendars,
-  migrateData
+  migrateData,
+  validateBackup
 };

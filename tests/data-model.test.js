@@ -6,7 +6,8 @@ const {
   normalizeEvent,
   normalizeEvents,
   normalizeCalendars,
-  migrateData
+  migrateData,
+  validateBackup
 } = require('../src/data-model');
 
 const NOW = new Date('2026-07-29T08:00:00.000Z');
@@ -91,4 +92,22 @@ test('无效日程和重复 ID 不会进入存储', () => {
   );
   assert.equal(events.length, 1);
   assert.equal(events[0].title, '有效');
+});
+
+test('F05 导入备份数据校验验证有效与无效结构', () => {
+  const invalidCases = [{}, null, [], 'text', { events: {} }];
+  for (const input of invalidCases) {
+    const result = validateBackup(input);
+    assert.equal(result.ok, false, `Input should be invalid: ${JSON.stringify(input)}`);
+    assert.ok(typeof result.reason === 'string' && result.reason.length > 0);
+  }
+
+  const validEmptyEvents = validateBackup({ events: [] });
+  assert.equal(validEmptyEvents.ok, true);
+
+  const validLegacyStructure = validateBackup({
+    events: [{ id: 'e1', title: '日程', date: '2026-10-12' }],
+    settings: { theme: 'dark' }
+  });
+  assert.equal(validLegacyStructure.ok, true);
 });

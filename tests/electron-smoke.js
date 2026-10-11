@@ -176,6 +176,90 @@ async function run() {
   assert.equal(result.runtimeError, null, 'renderer should not report runtime errors');
 
   console.log('Electron renderer smoke test passed:', JSON.stringify(result));
+
+  // F06 阶段验收：全新加载页面并在干净状态下验证撤销失效行为
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const f06Result = await window.webContents.executeJavaScript(`
+    (async () => {
+      window.confirm = () => true;
+      window.prompt = () => '测试日历';
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+
+      // 准备初始日程
+      const initialEvent = {
+        id: 'f06-move-event',
+        title: 'F06 待移动日程',
+        date: state.selectedDate,
+        allDay: true,
+        startTime: '',
+        endTime: '',
+        allDayReminderTime: '09:00',
+        reminders: [],
+        recurrence: { frequency: 'none', interval: 1, until: null, count: null },
+        repeat: 'none',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      state.events = [initialEvent];
+      render();
+
+      // 移动一条日程产生快照
+      const sourceDate = initialEvent.date;
+      const targetDate = DeskCalCore.dateKey(DeskCalCore.addDays(DeskCalCore.parseDate(sourceDate), 1));
+      await moveOccurrence(initialEvent.id, sourceDate, targetDate);
+
+      const hadSnapshotAfterMove = Boolean(state.undoSnapshot);
+
+      // 接着新增一条日程
+      const newEvent = {
+        id: 'f06-new-event',
+        title: 'F06 后续新增日程',
+        date: sourceDate,
+        allDay: true,
+        startTime: '',
+        endTime: '',
+        allDayReminderTime: '09:00',
+        reminders: [],
+        recurrence: { frequency: 'none', interval: 1, until: null, count: null },
+        repeat: 'none',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      state.events.push(newEvent);
+      await saveEvents('新增日程');
+
+      // 再调用 undoLastChange()
+      await undoLastChange();
+
+      const newEventStillExists = state.events.some((e) => e.id === 'f06-new-event');
+      const movedEvent = state.events.find((e) => e.id === 'f06-move-event');
+      const movedEventRemainsMoved = movedEvent?.date === targetDate;
+
+      return {
+        hadSnapshotAfterMove,
+        newEventStillExists,
+        movedEventRemainsMoved
+      };
+    })()
+  `);
+
+  assert.equal(f06Result.hadSnapshotAfterMove, true, '移动日程后应产生撤销快照');
+  assert.equal(f06Result.newEventStillExists, true, '新增的日程仍然存在');
+  assert.equal(f06Result.movedEventRemainsMoved, true, '被移动的日程保持移动后的状态');
+
+  console.log('F06 regression smoke test passed:', JSON.stringify(f06Result));
   window.destroy();
 }
 

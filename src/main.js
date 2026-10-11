@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const CalendarCore = require('./calendar-core');
 const DataModel = require('./data-model');
+const DataStore = require('./data-store');
 const { DEFAULT_DATA, SCHEMA_VERSION } = DataModel;
 
 let mainWindow = null;
@@ -22,6 +23,9 @@ let appData = structuredClone(DEFAULT_DATA);
 let dataPath = '';
 let reminderTimer = null;
 let isQuitting = false;
+let loadResult = null;
+let boundsSaveTimer = null;
+let pendingBounds = false;
 
 const appIconPath = path.join(__dirname, '..', 'assets', 'deskcal-icon.png');
 const iconSvg = `
@@ -48,39 +52,36 @@ function mergeData(value) {
 
 function loadData() {
   dataPath = path.join(app.getPath('userData'), 'deskcal-data.json');
-  try {
-    const stored = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-    appData = mergeData(stored);
-    if (
-      stored.schemaVersion !== SCHEMA_VERSION ||
-      JSON.stringify(stored) !== JSON.stringify(appData)
-    ) {
-      persistData();
-    }
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      const recoveryPath = `${dataPath}.corrupt-${Date.now()}`;
-      try {
-        fs.copyFileSync(dataPath, recoveryPath);
-      } catch {
-        // Keep the default store if even the recovery copy cannot be created.
-      }
-    }
-    appData = structuredClone(DEFAULT_DATA);
+  loadResult = DataStore.loadStore(dataPath);
+  appData = loadResult.data;
+}
+
+function persistData(options) {
+  if (!dataPath) return;
+  DataStore.saveStore(dataPath, appData, options);
+}
+
+function flushBounds() {
+  if (boundsSaveTimer) {
+    clearTimeout(boundsSaveTimer);
+    boundsSaveTimer = null;
+  }
+  if (pendingBounds) {
+    pendingBounds = false;
     persistData();
   }
 }
 
-function persistData() {
-  if (!dataPath) return;
-  fs.mkdirSync(path.dirname(dataPath), { recursive: true });
-  const tempPath = `${dataPath}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(appData, null, 2), 'utf8');
-  if (fs.existsSync(dataPath)) {
-    fs.copyFileSync(dataPath, `${dataPath}.bak`);
-  }
-  fs.copyFileSync(tempPath, dataPath);
-  fs.unlinkSync(tempPath);
+function scheduleSaveBounds() {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized()) return;
+  appData.window = { ...mainWindow.getBounds() };
+  pendingBounds = true;
+  if (boundsSaveTimer) clearTimeout(boundsSaveTimer);
+  boundsSaveTimer = setTimeout(() => {
+    boundsSaveTimer = null;
+    pendingBounds = false;
+    persistData();
+  }, 500);
 }
 
 function ensureVisibleBounds(saved) {
@@ -155,6 +156,24 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.showInactive();
+    if (loadResult && (loadResult.corruptPath || loadResult.source === 'backup')) {
+      const isRecovered = loadResult.source === 'backup';
+      const message = isRecovered
+        ? '数据文件损坏或丢失，已自动从备份恢复。'
+        : '数据文件已损坏且备份不可用，已重置为空白数据。';
+      const detail = loadResult.corruptPath
+        ? `原始损坏文件已留存至：\n${loadResult.corruptPath}`
+        : '';
+      dialog
+        .showMessageBox(mainWindow, {
+          type: isRecovered ? 'info' : 'warning',
+          title: 'DeskCal 数据恢复提示',
+          message,
+          detail
+        })
+        .catch(() => {});
+      loadResult = null;
+    }
   });
 
   mainWindow.on('close', (event) => {
@@ -164,13 +183,8 @@ function createWindow() {
     }
   });
 
-  const saveBounds = () => {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMinimized()) return;
-    appData.window = { ...mainWindow.getBounds() };
-    persistData();
-  };
-  mainWindow.on('resize', saveBounds);
-  mainWindow.on('move', saveBounds);
+  mainWindow.on('resize', scheduleSaveBounds);
+  mainWindow.on('move', scheduleSaveBounds);
 }
 
 function showWindow() {
@@ -425,13 +439,34 @@ function registerIpc() {
       filters: [{ name: 'DeskCal备份', extensions: ['json'] }]
     });
     if (result.canceled || !result.filePaths[0]) return { canceled: true };
-    const incoming = mergeData(JSON.parse(fs.readFileSync(result.filePaths[0], 'utf8')));
+    const filePath = result.filePaths[0];
+    let rawContent;
+    let parsed;
+    try {
+      rawContent = fs.readFileSync(filePath, 'utf8');
+      parsed = JSON.parse(rawContent);
+    } catch {
+      throw new Error('备份文件解析失败：不是合法的 JSON');
+    }
+    const validation = DataModel.validateBackup(parsed);
+    if (!validation.ok) {
+      throw new Error(`不是有效的 DeskCal 备份文件：${validation.reason}`);
+    }
+
+    if (dataPath && fs.existsSync(dataPath)) {
+      fs.copyFileSync(dataPath, `${dataPath}.before-import`);
+    }
+
+    const incoming = mergeData(parsed);
+    const imported = incoming.events.length;
+    const skipped = parsed.events.length - imported;
     appData = incoming;
     persistData();
     applyWindowSettings();
     updateTrayMenu();
     return {
       canceled: false,
+      summary: { imported, skipped },
       state: {
         schemaVersion: appData.schemaVersion,
         events: appData.events,
@@ -442,25 +477,35 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
-  app.setAppUserModelId('com.deskcal.windows');
-  loadData();
-  registerIpc();
-  createWindow();
-  createTray();
-  checkReminders(true);
-  reminderTimer = setInterval(() => checkReminders(false), 15000);
-  powerMonitor.on('resume', () => setTimeout(() => checkReminders(true), 1500));
-  screen.on('display-removed', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const safeBounds = ensureVisibleBounds(mainWindow.getBounds());
-    mainWindow.setBounds(safeBounds);
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    showWindow();
   });
 
-  app.on('activate', showWindow);
-});
+  app.whenReady().then(() => {
+    app.setAppUserModelId('com.deskcal.windows');
+    loadData();
+    registerIpc();
+    createWindow();
+    createTray();
+    checkReminders(true);
+    reminderTimer = setInterval(() => checkReminders(false), 15000);
+    powerMonitor.on('resume', () => setTimeout(() => checkReminders(true), 1500));
+    screen.on('display-removed', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const safeBounds = ensureVisibleBounds(mainWindow.getBounds());
+      mainWindow.setBounds(safeBounds);
+    });
 
-app.on('before-quit', () => {
-  isQuitting = true;
-  if (reminderTimer) clearInterval(reminderTimer);
-});
+    app.on('activate', showWindow);
+  });
+
+  app.on('before-quit', () => {
+    isQuitting = true;
+    if (reminderTimer) clearInterval(reminderTimer);
+    flushBounds();
+  });
+}

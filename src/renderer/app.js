@@ -886,6 +886,7 @@ function bindCalendarManager() {
         if (event.calendarId === calendar.id) event.calendarId = 'personal';
       });
       state.calendars = state.calendars.filter((item) => item.id !== calendar.id);
+      state.undoSnapshot = null;
       await window.deskcal.saveEvents(state.events);
       await saveCalendars('日历已删除，原日程已移入个人日历');
     });
@@ -1051,6 +1052,9 @@ function previewEventConflict() {
 }
 
 async function saveEvents(message = '日程已保存', action = null) {
+  if (action?.handler !== undoLastChange) {
+    state.undoSnapshot = null;
+  }
   await window.deskcal.saveEvents(state.events);
   render();
   showToast(message, 'DeskCal', action);
@@ -1590,11 +1594,18 @@ function bindEvents() {
         state.events = result.state.events;
         state.calendars = result.state.calendars || state.calendars;
         state.settings = result.state.settings;
+        state.undoSnapshot = null;
         render();
-        showToast('备份导入成功');
+        const imported = result.summary?.imported ?? state.events.length;
+        const skipped = result.summary?.skipped ?? 0;
+        const message =
+          skipped > 0
+            ? `成功导入 ${imported} 条日程，跳过 ${skipped} 条`
+            : `成功导入 ${imported} 条日程`;
+        showToast(message);
       }
     } catch {
-      showToast('无法读取该备份文件', '导入失败');
+      showToast('不是有效的 DeskCal 备份文件，当前数据未改动', '导入失败');
     }
   });
 
