@@ -119,7 +119,7 @@ npm run dist:win
 
 ## 数据位置与兼容
 
-日程默认保存在 Electron 的 `userData` 目录，文件名为 `deskcal-data.json`。每次更新会保留一个 `.bak` 备份。
+日程默认保存在 Electron 的 `userData` 目录，文件名为 `deskcal-data.json`。写入时采用原子替换，主文件备份（`.bak`）按不少于 10 分钟的时间间隔刷新。若主数据文件损坏，应用启动时会自动从 `.bak` 备份恢复并留存原损坏文件；导入备份前会自动将当前数据留存为 `deskcal-data.json.before-import`。
 
 旧版数据会在启动或导入时自动补充新字段，原有日程不会被修改。旧日程会自动归入默认的“个人”日历。删除操作进入回收站，拖拽和快速调整还可立即撤销。
 

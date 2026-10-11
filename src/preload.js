@@ -8,8 +8,10 @@ contextBridge.exposeInMainWorld('deskcal', {
   windowAction: (action) => ipcRenderer.invoke('window:action', action),
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
-  onCreateRequest: (callback) => ipcRenderer.on('event:create-request', callback),
-  onOpenSettings: (callback) => ipcRenderer.on('settings:open-request', callback),
+  onCreateRequest: (callback) =>
+    ipcRenderer.on('event:create-request', () => callback()),
+  onOpenSettings: (callback) =>
+    ipcRenderer.on('settings:open-request', () => callback()),
   onSettingsChanged: (callback) =>
     ipcRenderer.on('settings:changed', (_event, value) => callback(value)),
   onReminder: (callback) =>

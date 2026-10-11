@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const {
   HOLIDAY_SOURCE_2026,
   getDayInfo,
-  getHolidaySchedule
+  getHolidaySchedule,
+  clearCache
 } = require('../src/chinese-calendar');
 
 test('普通日期返回农历、干支和生肖信息', () => {
@@ -72,4 +73,39 @@ test('年度休班数据保留官方来源和发文字号', () => {
   assert.equal(schedule.documentNumber, '国办发明电〔2025〕7号');
   assert.equal(schedule.source, HOLIDAY_SOURCE_2026);
   assert.equal(getHolidaySchedule(2027), null);
+});
+
+test('F17 修正闰月显示与闰月传统节日过滤', () => {
+  // 1. 2028-06-27（闰五月初五）：traditionalFestival 为空，lunarMonthText 为「闰五月」，fullLunarText 为「农历戊申年 闰五月初五」，isLeapMonth 为 true
+  clearCache();
+  const info1 = getDayInfo('2028-06-27');
+  assert.equal(info1.traditionalFestival, '');
+  assert.equal(info1.lunarMonthText, '闰五月');
+  assert.equal(info1.fullLunarText, '农历戊申年 闰五月初五');
+  assert.equal(info1.isLeapMonth, true);
+
+  // 2. 2028-05-28（五月初五）：traditionalFestival 为「端午节」
+  clearCache();
+  const info2 = getDayInfo('2028-05-28');
+  assert.equal(info2.traditionalFestival, '端午节');
+
+  // 3. 2023-03-23（闰二月初二）：traditionalFestival 为空
+  clearCache();
+  const info3 = getDayInfo('2023-03-23');
+  assert.equal(info3.traditionalFestival, '');
+
+  // 4. 2023-02-21（二月初二）：traditionalFestival 为「龙抬头」
+  clearCache();
+  const info4 = getDayInfo('2023-02-21');
+  assert.equal(info4.traditionalFestival, '龙抬头');
+
+  // 5. 2025-07-25（闰六月初一）：lunarText 为「闰六月」
+  clearCache();
+  const info5 = getDayInfo('2025-07-25');
+  assert.equal(info5.lunarText, '闰六月');
+
+  // 6. 2027-02-05（腊月廿九）：traditionalFestival 为「除夕」
+  clearCache();
+  const info6 = getDayInfo('2027-02-05');
+  assert.equal(info6.traditionalFestival, '除夕');
 });

@@ -1281,18 +1281,20 @@ async function quickEditAction(action) {
     changes.completed = !event.completed;
   }
 
-  const candidate = { ...event, ...changes };
-  const conflicts = PlannerCore.conflictsForCandidate(
-    candidate,
-    visibleEvents(),
-    targetDate,
-    event.id
-  );
-  if (
-    conflicts.length &&
-    !confirm(`调整后与“${conflicts[0].title}”时间冲突，仍然继续吗？`)
-  ) {
-    return;
+  if (action !== 'complete') {
+    const candidate = { ...event, ...changes };
+    const conflicts = PlannerCore.conflictsForCandidate(
+      candidate,
+      visibleEvents(),
+      targetDate,
+      event.id
+    );
+    if (
+      conflicts.length &&
+      !confirm(`调整后与“${conflicts[0].title}”时间冲突，仍然继续吗？`)
+    ) {
+      return;
+    }
   }
 
   rememberUndo('快速调整');

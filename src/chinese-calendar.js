@@ -106,8 +106,7 @@
   const dayInfoCache = new Map();
 
   function lunarMonthName(lunar) {
-    const prefix = lunar.getMonth() < 0 ? '闰' : '';
-    return `${prefix}${lunar.getMonthInChinese()}月`;
+    return `${lunar.getMonthInChinese()}月`;
   }
 
   function isLunarNewYearsEve(lunar) {
@@ -117,7 +116,8 @@
 
   function getTraditionalFestival(lunar) {
     if (isLunarNewYearsEve(lunar)) return '除夕';
-    return TRADITIONAL_FESTIVALS[`${Math.abs(lunar.getMonth())}-${lunar.getDay()}`] || '';
+    if (lunar.getMonth() < 0) return '';
+    return TRADITIONAL_FESTIVALS[`${lunar.getMonth()}-${lunar.getDay()}`] || '';
   }
 
   function getDayInfo(input) {

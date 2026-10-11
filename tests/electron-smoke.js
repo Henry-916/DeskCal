@@ -468,6 +468,86 @@ async function run() {
   assert.equal(f16Result.scenario3Has15Or120, false, '新建日程表单里不应出现 15 和 120 选项');
 
   console.log('F16 regression smoke test passed:', JSON.stringify(f16Result));
+
+  // F18 阶段验收：全新加载页面并在干净状态下验证标记完成跳过时间冲突确认
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const f18Result = await window.webContents.executeJavaScript(`
+    (async () => {
+      let confirmCallCount = 0;
+      window.confirm = () => {
+        confirmCallCount += 1;
+        return true;
+      };
+      window.prompt = () => '测试日历';
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+
+      const today = state.selectedDate;
+
+      // 准备两条同一天时间重叠的日程
+      const eventA = {
+        id: 'f18-event-a',
+        title: 'F18 重叠日程 A',
+        date: today,
+        allDay: false,
+        startTime: '10:00',
+        endTime: '11:00',
+        allDayReminderTime: '09:00',
+        reminders: [10],
+        recurrence: { frequency: 'none', interval: 1, until: null, count: null },
+        repeat: 'none',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const eventB = {
+        id: 'f18-event-b',
+        title: 'F18 重叠日程 B',
+        date: today,
+        allDay: false,
+        startTime: '10:30',
+        endTime: '11:30',
+        allDayReminderTime: '09:00',
+        reminders: [10],
+        recurrence: { frequency: 'none', interval: 1, until: null, count: null },
+        repeat: 'none',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      state.events = [eventA, eventB];
+      render();
+
+      state.quickEditingId = eventA.id;
+      state.quickEditingDate = eventA.date;
+
+      // 对其中一条执行 quickEditAction('complete')
+      await quickEditAction('complete');
+
+      const updatedA = state.events.find((e) => e.id === eventA.id);
+
+      return {
+        confirmCallCount,
+        completedIsTrue: updatedA?.completed === true
+      };
+    })()
+  `);
+
+  assert.equal(f18Result.confirmCallCount, 0, '标记完成时确认函数调用次数应为 0');
+  assert.equal(f18Result.completedIsTrue, true, '标记完成后日程 completed 应变为 true');
+
+  console.log('F18 regression smoke test passed:', JSON.stringify(f18Result));
   window.destroy();
 }
 
