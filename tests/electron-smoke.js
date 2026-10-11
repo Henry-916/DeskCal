@@ -53,7 +53,10 @@ async function run() {
       repeat.value = 'weekly';
       repeat.dispatchEvent(new Event('change', { bubbles: true }));
       interval.value = '2';
-      until.value = '2026-12-31';
+      const untilDate = new Date();
+      untilDate.setDate(untilDate.getDate() + 90);
+      const pad = (value) => String(value).padStart(2, '0');
+      until.value = \`\${untilDate.getFullYear()}-\${pad(untilDate.getMonth() + 1)}-\${pad(untilDate.getDate())}\`;
       reminders.forEach((input) => {
         input.checked = input.value === '10' || input.value === '30';
       });
@@ -81,7 +84,7 @@ async function run() {
       const dragPreview = document.querySelector('[data-drag-event-id]');
       const dragSourceDate = dragPreview?.dataset.occurrenceDate;
       const dragTarget = [...document.querySelectorAll('.day-cell.week-cell')].find(
-        (cell) => cell.dataset.date > dragSourceDate
+        (cell) => cell.dataset.date !== dragSourceDate
       );
       let recurrenceScopeOpened = false;
       let dragMovedOccurrence = false;
