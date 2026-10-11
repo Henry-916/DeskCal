@@ -14,6 +14,21 @@
     天: 0
   };
 
+  const CHINESE_NUM_MAP = {
+    零: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+    十: 10
+  };
+
   function pad(value) {
     return String(value).padStart(2, '0');
   }
@@ -35,16 +50,45 @@
     return result;
   }
 
-  function upcomingWeekday(base, weekday, nextWeek) {
-    if (nextWeek) {
-      const mondayOffset = (base.getDay() + 6) % 7;
-      const nextMonday = addDays(base, 7 - mondayOffset);
-      return addDays(nextMonday, weekday === 0 ? 6 : weekday - 1);
-    }
+  function upcomingWeekday(base, weekday) {
     const current = base.getDay();
     let delta = (weekday - current + 7) % 7;
     if (delta === 0) delta = 7;
     return addDays(base, delta);
+  }
+
+  function parseNumberToken(val) {
+    if (!val) return null;
+    val = String(val).trim();
+    if (/^\d+$/.test(val)) return Number(val);
+    if (CHINESE_NUM_MAP[val] !== undefined) return CHINESE_NUM_MAP[val];
+    if (val.startsWith('十')) {
+      const d = CHINESE_NUM_MAP[val.slice(1)];
+      return d !== undefined ? 10 + d : null;
+    }
+    if (val.endsWith('十') && val.length === 2) {
+      const d = CHINESE_NUM_MAP[val[0]];
+      return d !== undefined ? d * 10 : null;
+    }
+    if (val.length === 3 && val[1] === '十') {
+      const tens = CHINESE_NUM_MAP[val[0]];
+      const ones = CHINESE_NUM_MAP[val[2]];
+      if (tens !== undefined && ones !== undefined) return tens * 10 + ones;
+    }
+    const prefixes = [
+      ['二十', 20],
+      ['三十', 30],
+      ['四十', 40],
+      ['五十', 50]
+    ];
+    for (const [pfx, baseVal] of prefixes) {
+      if (val.startsWith(pfx)) {
+        if (val.length === pfx.length) return baseVal;
+        const d = CHINESE_NUM_MAP[val.slice(pfx.length)];
+        if (d !== undefined) return baseVal + d;
+      }
+    }
+    return null;
   }
 
   function parseDateToken(text, now) {
@@ -53,63 +97,79 @@
       const year = Number(absolute[1]) || now.getFullYear();
       return {
         date: setCalendarDate(now, year, Number(absolute[2]), Number(absolute[3])),
-        token: absolute[0]
+        token: absolute[0],
+        span: [absolute.index, absolute.index + absolute[0].length]
       };
     }
 
-    const relative = /(今天|明天|后天)/.exec(text);
+    const relative = /(今天|明天|大后天|后天)/.exec(text);
     if (relative) {
-      const offsets = { 今天: 0, 明天: 1, 后天: 2 };
-      return { date: addDays(now, offsets[relative[1]]), token: relative[0] };
-    }
-
-    const weekday = /(下周|本周)?(?:周|星期)([一二三四五六日天])/.exec(text);
-    if (weekday) {
-      const target = WEEKDAY_INDEX[weekday[2]];
-      if (weekday[1] === '本周') {
-        const mondayOffset = (now.getDay() + 6) % 7;
-        const weekStart = addDays(now, -mondayOffset);
-        const mondayBasedTarget = target === 0 ? 6 : target - 1;
-        return { date: addDays(weekStart, mondayBasedTarget), token: weekday[0] };
-      }
+      const offsets = { 今天: 0, 明天: 1, 大后天: 3, 后天: 2 };
       return {
-        date: upcomingWeekday(now, target, weekday[1] === '下周'),
-        token: weekday[0]
+        date: addDays(now, offsets[relative[1]]),
+        token: relative[0],
+        span: [relative.index, relative.index + relative[0].length]
       };
     }
 
-    return { date: new Date(now), token: '' };
+    const weekdayRegex =
+      /(?:(下周|下星期|这周|本周|这星期|本星期)(?:周|星期)?|(?:周|星期))([一二三四五六日天])/;
+    const weekday = weekdayRegex.exec(text);
+    if (weekday) {
+      const modifier = weekday[1];
+      const target = WEEKDAY_INDEX[weekday[2]];
+      const mondayOffset = (now.getDay() + 6) % 7;
+      const currentMonday = addDays(now, -mondayOffset);
+
+      if (modifier === '本周' || modifier === '这周' || modifier === '本星期' || modifier === '这星期') {
+        const dayOffset = target === 0 ? 6 : target - 1;
+        return {
+          date: addDays(currentMonday, dayOffset),
+          token: weekday[0],
+          span: [weekday.index, weekday.index + weekday[0].length]
+        };
+      }
+
+      if (modifier === '下周' || modifier === '下星期') {
+        const nextMonday = addDays(currentMonday, 7);
+        const dayOffset = target === 0 ? 6 : target - 1;
+        return {
+          date: addDays(nextMonday, dayOffset),
+          token: weekday[0],
+          span: [weekday.index, weekday.index + weekday[0].length]
+        };
+      }
+
+      return {
+        date: upcomingWeekday(now, target),
+        token: weekday[0],
+        span: [weekday.index, weekday.index + weekday[0].length]
+      };
+    }
+
+    return { date: new Date(now), token: '', span: null };
   }
 
   function normalizeHour(hour, period) {
     let value = Math.max(0, Math.min(23, Number(hour)));
-    if ((period === '下午' || period === '晚上') && value < 12) value += 12;
-    if (period === '中午' && value < 11) value += 12;
-    if ((period === '凌晨' || period === '早上' || period === '上午') && value === 12) value = 0;
+    if (period === '晚上') {
+      if (value === 12) return 0;
+      if (value < 12) return value + 12;
+      return value;
+    }
+    if (period === '下午') {
+      if (value < 12) return value + 12;
+      return value;
+    }
+    if (period === '中午') {
+      if (value < 11) return value + 12;
+      return value;
+    }
+    if (period === '凌晨' || period === '早上' || period === '上午') {
+      if (value === 12) return 0;
+      return value;
+    }
     return value;
-  }
-
-  function parseTimeToken(text) {
-    const clock = /(?:^|\s|，|,)([01]?\d|2[0-3]):([0-5]\d)(?=$|\s|，|,)/.exec(text);
-    if (clock) {
-      return {
-        hour: Number(clock[1]),
-        minute: Number(clock[2]),
-        token: clock[0].trim()
-      };
-    }
-
-    const chinese = /(凌晨|早上|上午|中午|下午|晚上)?\s*(\d{1,2})点(?:(半)|(\d{1,2})分?)?/.exec(
-      text
-    );
-    if (chinese) {
-      return {
-        hour: normalizeHour(chinese[2], chinese[1]),
-        minute: chinese[3] ? 30 : Math.min(59, Number(chinese[4]) || 0),
-        token: chinese[0]
-      };
-    }
-    return null;
   }
 
   function endTimeFor(hour, minute) {
@@ -117,14 +177,171 @@
     return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
   }
 
+  const TIME_WORDS = '(?:凌晨|早上|上午|中午|下午|晚上)';
+  const CHINESE_NUM_STR = '(?:\\d{1,2}|[零一二两三四五六七八九十]+)';
+
+  function parseSingleChineseComponent(periodStr, hourStr, specialMinStr, normalMinStr) {
+    const rawHour = parseNumberToken(hourStr);
+    if (rawHour === null) return null;
+    const period = periodStr || null;
+    let minute = 0;
+    if (specialMinStr === '半') minute = 30;
+    else if (specialMinStr === '一刻') minute = 15;
+    else if (specialMinStr === '三刻') minute = 45;
+    else if (normalMinStr) {
+      const parsedMin = parseNumberToken(normalMinStr);
+      minute = parsedMin !== null ? Math.min(59, Math.max(0, parsedMin)) : 0;
+    }
+
+    const rolloverDay = period === '晚上' && rawHour === 12 ? 1 : 0;
+    const hour = normalizeHour(rawHour, period);
+    return { hour, minute, period, rawHour, rolloverDay };
+  }
+
+  function parseTimeToken(text) {
+    // 1. Digital range: 15:00-17:00, 11:00-01:00
+    const digitalRangeRegex =
+      /([01]?\d|2[0-3]):([0-5]\d)\s*(?:到|至|-|~|—)\s*([01]?\d|2[0-3]):([0-5]\d)/;
+    const digitalRangeMatch = digitalRangeRegex.exec(text);
+    if (digitalRangeMatch) {
+      const startHour = Number(digitalRangeMatch[1]);
+      const startMinute = Number(digitalRangeMatch[2]);
+      let endHour = Number(digitalRangeMatch[3]);
+      let endMinute = Number(digitalRangeMatch[4]);
+
+      const startTotal = startHour * 60 + startMinute;
+      let endTotal = endHour * 60 + endMinute;
+
+      if (endTotal <= startTotal) {
+        const retryHour = endHour + 12;
+        const retryTotal = retryHour * 60 + endMinute;
+        if (retryHour < 24 && retryTotal > startTotal) {
+          endHour = retryHour;
+          endTotal = retryTotal;
+        } else {
+          endTotal = Math.min(23 * 60 + 59, startTotal + 60);
+          endHour = Math.floor(endTotal / 60);
+          endMinute = endTotal % 60;
+        }
+      }
+
+      return {
+        startTime: `${pad(startHour)}:${pad(startMinute)}`,
+        endTime: `${pad(endHour)}:${pad(endMinute)}`,
+        rolloverDay: 0,
+        span: [digitalRangeMatch.index, digitalRangeMatch.index + digitalRangeMatch[0].length]
+      };
+    }
+
+    // 2. Chinese range: 下午3点到5点, 上午10点到下午2点, 上午11点到1点
+    const chineseRangeRegex = new RegExp(
+      `(${TIME_WORDS})?\\s*(${CHINESE_NUM_STR})点(?:(半|一刻|三刻)|(${CHINESE_NUM_STR})分?)?\\s*(到|至|-|~|—)\\s*(${TIME_WORDS})?\\s*(${CHINESE_NUM_STR})点(?:(半|一刻|三刻)|(${CHINESE_NUM_STR})分?)?`
+    );
+    const chineseRangeMatch = chineseRangeRegex.exec(text);
+    if (chineseRangeMatch) {
+      const startComp = parseSingleChineseComponent(
+        chineseRangeMatch[1],
+        chineseRangeMatch[2],
+        chineseRangeMatch[3],
+        chineseRangeMatch[4]
+      );
+      if (startComp) {
+        let endPeriod = chineseRangeMatch[6] || startComp.period;
+        const rawEndHour = parseNumberToken(chineseRangeMatch[7]);
+        if (rawEndHour !== null) {
+          let endMinute = 0;
+          if (chineseRangeMatch[8] === '半') endMinute = 30;
+          else if (chineseRangeMatch[8] === '一刻') endMinute = 15;
+          else if (chineseRangeMatch[8] === '三刻') endMinute = 45;
+          else if (chineseRangeMatch[9]) {
+            const parsedMin = parseNumberToken(chineseRangeMatch[9]);
+            endMinute = parsedMin !== null ? Math.min(59, Math.max(0, parsedMin)) : 0;
+          }
+
+          let endHour = normalizeHour(rawEndHour, endPeriod);
+          const startTotal = startComp.hour * 60 + startComp.minute;
+          let endTotal = endHour * 60 + endMinute;
+
+          if (endTotal <= startTotal) {
+            const retryHour = endHour + 12;
+            const retryTotal = retryHour * 60 + endMinute;
+            if (retryHour < 24 && retryTotal > startTotal) {
+              endHour = retryHour;
+              endTotal = retryTotal;
+            } else {
+              endTotal = Math.min(23 * 60 + 59, startTotal + 60);
+              endHour = Math.floor(endTotal / 60);
+              endMinute = endTotal % 60;
+            }
+          }
+
+          return {
+            startTime: `${pad(startComp.hour)}:${pad(startComp.minute)}`,
+            endTime: `${pad(endHour)}:${pad(endMinute)}`,
+            rolloverDay: startComp.rolloverDay,
+            span: [chineseRangeMatch.index, chineseRangeMatch.index + chineseRangeMatch[0].length]
+          };
+        }
+      }
+    }
+
+    // 3. Digital single: 15:30
+    const digitalSingleRegex = /(?:^|[^\d])([01]?\d|2[0-3]):([0-5]\d)(?=$|[^\d])/;
+    const digitalSingleMatch = digitalSingleRegex.exec(text);
+    if (digitalSingleMatch) {
+      const matchStart = digitalSingleMatch.index + (digitalSingleMatch[0].startsWith(':') || /^\D/.test(digitalSingleMatch[0]) ? 1 : 0);
+      const tokenStr = `${digitalSingleMatch[1]}:${digitalSingleMatch[2]}`;
+      const startHour = Number(digitalSingleMatch[1]);
+      const startMinute = Number(digitalSingleMatch[2]);
+      return {
+        startTime: `${pad(startHour)}:${pad(startMinute)}`,
+        endTime: endTimeFor(startHour, startMinute),
+        rolloverDay: 0,
+        span: [matchStart, matchStart + tokenStr.length]
+      };
+    }
+
+    // 4. Chinese single: 晚上12点半, 下午3点, 3点
+    const chineseSingleRegex = new RegExp(
+      `(${TIME_WORDS})?\\s*(${CHINESE_NUM_STR})点(?:(半|一刻|三刻)|(${CHINESE_NUM_STR})分?)?`
+    );
+    const chineseSingleMatch = chineseSingleRegex.exec(text);
+    if (chineseSingleMatch) {
+      const comp = parseSingleChineseComponent(
+        chineseSingleMatch[1],
+        chineseSingleMatch[2],
+        chineseSingleMatch[3],
+        chineseSingleMatch[4]
+      );
+      if (comp) {
+        return {
+          startTime: `${pad(comp.hour)}:${pad(comp.minute)}`,
+          endTime: endTimeFor(comp.hour, comp.minute),
+          rolloverDay: comp.rolloverDay,
+          span: [chineseSingleMatch.index, chineseSingleMatch.index + chineseSingleMatch[0].length]
+        };
+      }
+    }
+
+    return null;
+  }
+
   function parseReminder(text) {
-    if (/不提醒/.test(text)) return { reminders: [], token: '不提醒' };
+    const noRemind = /不提醒/.exec(text);
+    if (noRemind) {
+      return {
+        reminders: [],
+        token: '不提醒',
+        span: [noRemind.index, noRemind.index + noRemind[0].length]
+      };
+    }
     const match = /提前\s*(\d+)\s*(分钟|小时|天)(?:提醒)?/.exec(text);
-    if (!match) return { reminders: [10], token: '' };
+    if (!match) return { reminders: [10], token: '', span: null };
     const factors = { 分钟: 1, 小时: 60, 天: 1440 };
     return {
       reminders: [Number(match[1]) * factors[match[2]]],
-      token: match[0]
+      token: match[0],
+      span: [match.index, match.index + match[0].length]
     };
   }
 
@@ -138,9 +355,15 @@
     ];
     for (const [pattern, frequency] of options) {
       const match = pattern.exec(text);
-      if (match) return { frequency, token: match[0] };
+      if (match) {
+        return {
+          frequency,
+          token: match[0],
+          span: [match.index, match.index + match[0].length]
+        };
+      }
     }
-    return { frequency: 'none', token: '' };
+    return { frequency: 'none', token: '', span: null };
   }
 
   function inferCategory(text) {
@@ -150,8 +373,32 @@
     return 'work';
   }
 
-  function removeOnce(text, token) {
-    return token ? text.replace(token, ' ') : text;
+  function mergeSpans(spans) {
+    if (!spans.length) return [];
+    const sorted = spans.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const merged = [sorted[0].slice()];
+    for (let i = 1; i < sorted.length; i += 1) {
+      const current = sorted[i];
+      const prev = merged[merged.length - 1];
+      if (current[0] <= prev[1]) {
+        prev[1] = Math.max(prev[1], current[1]);
+      } else {
+        merged.push(current.slice());
+      }
+    }
+    return merged;
+  }
+
+  function removeSpans(text, spans) {
+    const merged = mergeSpans(spans);
+    let result = '';
+    let lastIndex = 0;
+    for (const [start, end] of merged) {
+      result += text.slice(lastIndex, start) + ' ';
+      lastIndex = end;
+    }
+    result += text.slice(lastIndex);
+    return result;
   }
 
   function parseQuickInput(value, now = new Date()) {
@@ -165,15 +412,17 @@
     const reminderResult = parseReminder(original);
     const recurrenceResult = parseRecurrence(original);
 
-    let title = original;
-    for (const token of [
-      dateResult.token,
-      timeResult?.token,
-      reminderResult.token,
-      recurrenceResult.token
-    ]) {
-      title = removeOnce(title, token);
+    if (timeResult?.rolloverDay) {
+      dateResult.date = addDays(dateResult.date, timeResult.rolloverDay);
     }
+
+    const spans = [];
+    if (dateResult.span) spans.push(dateResult.span);
+    if (timeResult?.span) spans.push(timeResult.span);
+    if (reminderResult.span) spans.push(reminderResult.span);
+    if (recurrenceResult.span) spans.push(recurrenceResult.span);
+
+    let title = removeSpans(original, spans);
     title = title
       .replace(/提醒我|请提醒|提醒/g, ' ')
       .replace(/[，,。；;]+/g, ' ')
@@ -182,7 +431,9 @@
     if (!title) title = '新日程';
 
     const allDay = !timeResult;
-    const startTime = timeResult ? `${pad(timeResult.hour)}:${pad(timeResult.minute)}` : '';
+    const startTime = timeResult ? timeResult.startTime : '';
+    const endTime = timeResult ? timeResult.endTime : '';
+
     return {
       ok: true,
       original,
@@ -190,7 +441,7 @@
       date: dateKey(dateResult.date),
       allDay,
       startTime,
-      endTime: timeResult ? endTimeFor(timeResult.hour, timeResult.minute) : '',
+      endTime,
       reminders: reminderResult.reminders,
       recurrence: {
         frequency: recurrenceResult.frequency,

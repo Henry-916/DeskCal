@@ -382,6 +382,92 @@ async function run() {
   assert.equal(f08Result.nonrecCompletedFlipped, true, '非重复日程点击 ✓ 应正常翻转完成状态');
 
   console.log('F08 regression smoke test passed:', JSON.stringify(f08Result));
+
+  // F16 阶段验收：全新加载页面并在干净状态下验证预设外提醒值保留与表单重置
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const f16Result = await window.webContents.executeJavaScript(`
+    (async () => {
+      window.confirm = () => true;
+      window.prompt = () => '测试日历';
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+
+      // 用例 1：快速录入「明天下午3点开会 提前2小时」并提交，再提交日程表单；保存下来的日程 reminders 等于 [120]
+      openQuickAdd();
+      $('#quickAddInput').value = '明天下午3点开会 提前2小时';
+      $('#quickAddInput').dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(20);
+
+      // 提交快速录入（会打开 eventDialog）
+      $('#quickAddForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      await wait(20);
+
+      // 提交日程表单
+      $('#eventForm').requestSubmit();
+      await wait(50);
+
+      const quickAddedEvent = state.events.find((e) => e.title === '开会');
+      const scenario1Reminders = quickAddedEvent?.reminders;
+
+      // 用例 2：打开一条 reminders 为 [15, 120] 的现有日程，不做修改直接保存；reminders 仍为 [15, 120]
+      const customEvent = {
+        id: 'f16-custom-reminders',
+        title: 'F16 自定义提醒日程',
+        date: state.selectedDate,
+        allDay: true,
+        startTime: '',
+        endTime: '',
+        allDayReminderTime: '09:00',
+        reminders: [15, 120],
+        recurrence: { frequency: 'none', interval: 1, until: null, count: null },
+        repeat: 'none',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      state.events.push(customEvent);
+      render();
+
+      openEventDialog(customEvent.id, customEvent.date);
+      await wait(20);
+
+      // 不做修改直接保存
+      $('#eventForm').requestSubmit();
+      await wait(50);
+
+      const savedCustomEvent = state.events.find((e) => e.id === customEvent.id);
+      const scenario2Reminders = savedCustomEvent?.reminders;
+
+      // 用例 3：之后新建一条日程，表单里不出现上一次追加的 15 和 120 选项
+      openEventDialog(null, state.selectedDate);
+      await wait(20);
+
+      const dynamicOptions = [...document.querySelectorAll('#eventReminderOptions [data-custom-reminder]')];
+      const allOptionValues = [...document.querySelectorAll('#eventReminderOptions input')].map((i) => Number(i.value));
+      const has15Or120 = allOptionValues.includes(15) || allOptionValues.includes(120);
+
+      $('#eventDialog').close();
+
+      return {
+        scenario1Reminders,
+        scenario2Reminders,
+        scenario3DynamicCount: dynamicOptions.length,
+        scenario3Has15Or120: has15Or120
+      };
+    })()
+  `);
+
+  assert.deepEqual(f16Result.scenario1Reminders, [120], '快速录入提前2小时保存后的 reminders 应为 [120]');
+  assert.deepEqual(f16Result.scenario2Reminders, [15, 120], '已有 [15, 120] 提醒的日程保存后仍应为 [15, 120]');
+  assert.equal(f16Result.scenario3DynamicCount, 0, '新建日程时动态选项应被移除');
+  assert.equal(f16Result.scenario3Has15Or120, false, '新建日程表单里不应出现 15 和 120 选项');
+
+  console.log('F16 regression smoke test passed:', JSON.stringify(f16Result));
   window.destroy();
 }
 

@@ -943,6 +943,38 @@ function render() {
   renderSettings();
 }
 
+const PRESET_REMINDERS = new Set([0, 5, 10, 30, 60, 1440]);
+
+function formatReminderLabel(minutes) {
+  if (minutes % 1440 === 0) return `提前${minutes / 1440}天`;
+  if (minutes % 60 === 0) return `提前${minutes / 60}小时`;
+  return `提前${minutes}分钟`;
+}
+
+function setReminderOptions(reminders = []) {
+  const container = $('#eventReminderOptions');
+  $all('#eventReminderOptions [data-custom-reminder]').forEach((el) => el.remove());
+  const reminderValues = [
+    ...new Set(reminders.map(Number).filter((n) => Number.isFinite(n) && n >= 0))
+  ];
+  const reminderSet = new Set(reminderValues);
+
+  for (const minutes of reminderValues) {
+    if (!PRESET_REMINDERS.has(minutes)) {
+      const label = document.createElement('label');
+      label.dataset.customReminder = 'true';
+      label.innerHTML = `<input type="checkbox" value="${minutes}" checked />${escapeHtml(
+        formatReminderLabel(minutes)
+      )}`;
+      container.appendChild(label);
+    }
+  }
+
+  $all('#eventReminderOptions input').forEach((input) => {
+    input.checked = reminderSet.has(Number(input.value));
+  });
+}
+
 function resetEventForm(date = state.selectedDate) {
   $('#eventForm').reset();
   $('#eventId').value = '';
@@ -950,6 +982,7 @@ function resetEventForm(date = state.selectedDate) {
   $('#eventStartTime').value = '09:00';
   $('#eventEndTime').value = '10:00';
   $('#eventAllDayReminderTime').value = '09:00';
+  $all('#eventReminderOptions [data-custom-reminder]').forEach((el) => el.remove());
   $all('#eventReminderOptions input').forEach((input) => {
     input.checked = input.value === '10';
   });
@@ -988,10 +1021,7 @@ function openEventDialog(eventId = null, date = state.selectedDate) {
     $('#eventStartTime').value = event.startTime || '09:00';
     $('#eventEndTime').value = event.endTime || '10:00';
     $('#eventAllDayReminderTime').value = event.allDayReminderTime || '09:00';
-    const reminders = new Set((event.reminders || []).map(String));
-    $all('#eventReminderOptions input').forEach((input) => {
-      input.checked = reminders.has(input.value);
-    });
+    setReminderOptions(event.reminders || []);
     const recurrence = normalizeRecurrence(event);
     $('#eventRepeat').value = recurrence.frequency;
     $('#eventRepeatInterval').value = String(recurrence.interval);
@@ -1378,9 +1408,7 @@ function submitQuickAdd(event) {
   $('#eventAllDay').checked = parsed.allDay;
   $('#eventStartTime').value = parsed.startTime || '09:00';
   $('#eventEndTime').value = parsed.endTime || '10:00';
-  $all('#eventReminderOptions input').forEach((input) => {
-    input.checked = parsed.reminders.includes(Number(input.value));
-  });
+  setReminderOptions(parsed.reminders || []);
   $('#eventRepeat').value = parsed.recurrence.frequency;
   $('#eventRepeatInterval').value = String(parsed.recurrence.interval);
   $('#eventCategory').value = parsed.category;
