@@ -1,10 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const CalendarCore = require('../src/calendar-core');
 const {
   shiftTimeRange,
   timeRangesOverlap,
   conflictsForCandidate,
-  applyOccurrenceChange
+  applyOccurrenceChange,
+  applyOccurrenceDeletion
 } = require('../src/planner-core');
 
 test('时间段相交检测允许首尾相接但阻止重叠', () => {
@@ -106,4 +108,111 @@ test('修改本次及以后会截断原系列并创建新系列', () => {
   assert.equal(result.detached.id, 'future-series');
   assert.equal(result.detached.date, '2026-08-12');
   assert.equal(result.detached.recurrence.frequency, 'weekly');
+});
+
+test('F11 future修改保留剩余次数与次数覆盖规则', () => {
+  const baseEvent = {
+    id: 'series-5',
+    title: '每日计划',
+    date: '2026-10-12',
+    recurrence: { frequency: 'daily', interval: 1, until: null, count: 5 },
+    repeat: 'daily',
+    exceptions: []
+  };
+
+  // 1. changes 不含 recurrence：新系列 count 为 3，在 2026-10-16 发生，2026-10-17 不发生，原系列截止于 2026-10-13
+  const res1 = applyOccurrenceChange(
+    baseEvent,
+    '2026-10-14',
+    { title: '调整后计划' },
+    'future',
+    () => 'detached-1'
+  );
+  assert.equal(res1.detached.recurrence.count, 3);
+  assert.equal(CalendarCore.occursOn(res1.detached, CalendarCore.parseDate('2026-10-16')), true);
+  assert.equal(CalendarCore.occursOn(res1.detached, CalendarCore.parseDate('2026-10-17')), false);
+  assert.equal(res1.original.recurrence.until, '2026-10-13');
+
+  // 2. changes.recurrence 的 count 仍是 5（表单带出的原值）：新系列 count 为 3
+  const res2 = applyOccurrenceChange(
+    baseEvent,
+    '2026-10-14',
+    { recurrence: { frequency: 'daily', interval: 1, count: 5 } },
+    'future',
+    () => 'detached-2'
+  );
+  assert.equal(res2.detached.recurrence.count, 3);
+
+  // 3. changes.recurrence.count 为 10：新系列 count 为 10
+  const res3 = applyOccurrenceChange(
+    baseEvent,
+    '2026-10-14',
+    { recurrence: { frequency: 'daily', interval: 1, count: 10 } },
+    'future',
+    () => 'detached-3'
+  );
+  assert.equal(res3.detached.recurrence.count, 10);
+
+  // 4. changes.recurrence.count 为 null（显式清空次数）：新系列 count 为 null
+  const res4 = applyOccurrenceChange(
+    baseEvent,
+    '2026-10-14',
+    { recurrence: { frequency: 'daily', interval: 1, count: null } },
+    'future',
+    () => 'detached-4'
+  );
+  assert.equal(res4.detached.recurrence.count, null);
+
+  // 5. 在 2026-10-12（第一次）上做 future 修改：detached 为 null，original 包含改动，重复规则不变
+  const res5 = applyOccurrenceChange(
+    baseEvent,
+    '2026-10-12',
+    { title: '首日修改' },
+    'future',
+    () => 'detached-5'
+  );
+  assert.equal(res5.detached, null);
+  assert.equal(res5.original.title, '首日修改');
+  assert.equal(res5.original.recurrence.count, 5);
+  assert.equal(res5.original.recurrence.until, null);
+});
+
+test('F11 applyOccurrenceDeletion 纯函数处理四种情况并保持入参不变', () => {
+  const recurringEvent = {
+    id: 'rec-event',
+    title: '例会',
+    date: '2026-10-12',
+    recurrence: { frequency: 'weekly', interval: 1, count: 4 },
+    exceptions: []
+  };
+
+  const snapshot = structuredClone(recurringEvent);
+  const now = new Date('2026-10-11T12:00:00Z');
+
+  // 情况 1: 非重复日程或 scope 是 series
+  const delSeries = applyOccurrenceDeletion(recurringEvent, '2026-10-19', 'series', now);
+  assert.ok(delSeries.deletedAt);
+  assert.equal(delSeries.updatedAt, now.toISOString());
+
+  const nonRecEvent = { id: 'single', title: '单次', date: '2026-10-12', recurrence: { frequency: 'none' } };
+  const delSingle = applyOccurrenceDeletion(nonRecEvent, '2026-10-12', 'occurrence', now);
+  assert.ok(delSingle.deletedAt);
+
+  // 情况 2: future 且是第一次发生 (2026-10-12) -> 等同于删除整个系列，带 deletedAt
+  const delFutureFirst = applyOccurrenceDeletion(recurringEvent, '2026-10-12', 'future', now);
+  assert.ok(delFutureFirst.deletedAt);
+
+  // 情况 3: future 其他情况 -> until 设为前一天，count 设为 null
+  const delFutureOther = applyOccurrenceDeletion(recurringEvent, '2026-10-19', 'future', now);
+  assert.equal(delFutureOther.recurrence.until, '2026-10-18');
+  assert.equal(delFutureOther.recurrence.count, null);
+  assert.equal(delFutureOther.deletedAt, undefined);
+
+  // 情况 4: 其余 (仅本次 occurrence) -> 把日期加入 exceptions
+  const delOcc = applyOccurrenceDeletion(recurringEvent, '2026-10-19', 'occurrence', now);
+  assert.deepEqual(delOcc.exceptions, ['2026-10-19']);
+  assert.equal(delOcc.deletedAt, undefined);
+
+  // 保证入参没有被修改
+  assert.deepEqual(recurringEvent, snapshot);
 });

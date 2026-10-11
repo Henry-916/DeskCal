@@ -97,24 +97,52 @@
           ? diff / (7 * recurrence.interval) + 1
           : 0;
       case 'monthly': {
+        if (targetDate.getDate() !== start.getDate()) return 0;
         const monthDistance =
           (targetDate.getFullYear() - start.getFullYear()) * 12 +
           targetDate.getMonth() -
           start.getMonth();
-        return monthDistance >= 0 &&
-          monthDistance % recurrence.interval === 0 &&
-          targetDate.getDate() === start.getDate()
-          ? monthDistance / recurrence.interval + 1
-          : 0;
+        if (monthDistance < 0 || monthDistance % recurrence.interval !== 0) return 0;
+        const startDay = start.getDate();
+        if (startDay <= 28) {
+          return monthDistance / recurrence.interval + 1;
+        }
+        let actualCount = 0;
+        for (let m = 0; m <= monthDistance; m += recurrence.interval) {
+          const year = start.getFullYear() + Math.floor((start.getMonth() + m) / 12);
+          const month = (start.getMonth() + m) % 12;
+          const daysInMonth = new Date(year, month + 1, 0).getDate();
+          if (daysInMonth >= startDay) {
+            actualCount += 1;
+          }
+        }
+        return actualCount;
       }
       case 'yearly': {
+        if (
+          targetDate.getMonth() !== start.getMonth() ||
+          targetDate.getDate() !== start.getDate()
+        ) {
+          return 0;
+        }
         const yearDistance = targetDate.getFullYear() - start.getFullYear();
-        return yearDistance >= 0 &&
-          yearDistance % recurrence.interval === 0 &&
-          targetDate.getMonth() === start.getMonth() &&
-          targetDate.getDate() === start.getDate()
-          ? yearDistance / recurrence.interval + 1
-          : 0;
+        if (yearDistance < 0 || yearDistance % recurrence.interval !== 0) return 0;
+        const isLeapDay = start.getMonth() === 1 && start.getDate() === 29;
+        if (!isLeapDay) {
+          return yearDistance / recurrence.interval + 1;
+        }
+        let actualCount = 0;
+        for (
+          let y = start.getFullYear();
+          y <= targetDate.getFullYear();
+          y += recurrence.interval
+        ) {
+          const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+          if (isLeap) {
+            actualCount += 1;
+          }
+        }
+        return actualCount;
       }
       default:
         return diff === 0 ? 1 : 0;

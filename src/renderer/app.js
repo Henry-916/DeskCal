@@ -1182,20 +1182,10 @@ async function deleteEditingEvent() {
 
 async function deleteOccurrence(event, occurrenceDate, scope) {
   rememberUndo('日程删除');
-  const timestamp = new Date().toISOString();
-  if (normalizeRecurrence(event).frequency === 'none' || scope === 'series') {
-    event.deletedAt = timestamp;
-    event.updatedAt = timestamp;
-  } else if (scope === 'future') {
-    event.recurrence = {
-      ...normalizeRecurrence(event),
-      until: PlannerCore.previousDateKey(occurrenceDate),
-      count: null
-    };
-    event.updatedAt = timestamp;
-  } else {
-    event.exceptions = [...new Set([...(event.exceptions || []), occurrenceDate])].sort();
-    event.updatedAt = timestamp;
+  const updated = PlannerCore.applyOccurrenceDeletion(event, occurrenceDate, scope);
+  const index = state.events.findIndex((item) => item.id === event.id);
+  if (index !== -1) {
+    state.events[index] = updated;
   }
   await saveEvents('日程已删除', { label: '撤销', handler: undoLastChange });
 }

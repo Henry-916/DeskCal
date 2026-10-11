@@ -68,7 +68,11 @@
   function applyOccurrenceChange(event, occurrenceDate, changes, scope, createId, now = new Date()) {
     const recurrence = normalizeRecurrence(event);
     const timestamp = now.toISOString();
-    if (recurrence.frequency === 'none' || scope === 'series') {
+    const isFirstOccurrence =
+      recurrence.frequency !== 'none' &&
+      CalendarCore.occurrenceNumber(event, parseDate(occurrenceDate)) === 1;
+
+    if (recurrence.frequency === 'none' || scope === 'series' || (scope === 'future' && isFirstOccurrence)) {
       return {
         original: {
           ...event,
@@ -83,6 +87,26 @@
       const nextRecurrence = normalizeRecurrence({
         recurrence: changes.recurrence || recurrence
       });
+
+      let nextCount = null;
+      const hasExplicitRecurrence = Boolean(changes.recurrence && typeof changes.recurrence === 'object');
+      const hasExplicitCount =
+        hasExplicitRecurrence && Object.prototype.hasOwnProperty.call(changes.recurrence, 'count');
+      const candidateCount = hasExplicitCount
+        ? Number.isFinite(Number(changes.recurrence.count)) && Number(changes.recurrence.count) > 0
+          ? Math.trunc(Number(changes.recurrence.count))
+          : null
+        : undefined;
+
+      if (hasExplicitCount && candidateCount !== recurrence.count) {
+        nextCount = candidateCount;
+      } else if (recurrence.count) {
+        const occNum = CalendarCore.occurrenceNumber(event, parseDate(occurrenceDate));
+        nextCount = Math.max(1, recurrence.count - (occNum - 1));
+      } else {
+        nextCount = null;
+      }
+
       const original = {
         ...event,
         recurrence: {
@@ -98,7 +122,7 @@
         ...changes,
         id: createId(),
         date: changes.date || occurrenceDate,
-        recurrence: { ...nextRecurrence, count: null },
+        recurrence: { ...nextRecurrence, count: nextCount },
         repeat: nextRecurrence.frequency,
         exceptions: (event.exceptions || []).filter((value) => value >= occurrenceDate),
         createdAt: timestamp,
@@ -126,6 +150,40 @@
     return { original, detached };
   }
 
+  function applyOccurrenceDeletion(event, occurrenceDate, scope, now = new Date()) {
+    const recurrence = normalizeRecurrence(event);
+    const timestamp = now.toISOString();
+    const isRecurring = recurrence.frequency !== 'none';
+    const isFirst =
+      isRecurring && CalendarCore.occurrenceNumber(event, parseDate(occurrenceDate)) === 1;
+
+    if (!isRecurring || scope === 'series' || (scope === 'future' && isFirst)) {
+      return {
+        ...event,
+        deletedAt: timestamp,
+        updatedAt: timestamp
+      };
+    }
+
+    if (scope === 'future') {
+      return {
+        ...event,
+        recurrence: {
+          ...recurrence,
+          until: previousDateKey(occurrenceDate),
+          count: null
+        },
+        updatedAt: timestamp
+      };
+    }
+
+    return {
+      ...event,
+      exceptions: [...new Set([...(event.exceptions || []), occurrenceDate])].sort(),
+      updatedAt: timestamp
+    };
+  }
+
   return {
     minutesFromTime,
     timeFromMinutes,
@@ -133,6 +191,7 @@
     timeRangesOverlap,
     conflictsForCandidate,
     previousDateKey,
-    applyOccurrenceChange
+    applyOccurrenceChange,
+    applyOccurrenceDeletion
   };
 });

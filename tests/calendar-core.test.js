@@ -263,3 +263,31 @@ test('F09 提醒去重按触发时刻识别并通过 unsentReminders 过滤', ()
   assert.equal(multiDueSecond.length, 1);
   assert.equal(multiDueSecond[0].minutes, 30);
 });
+
+test('F12 每月和每年重复按实际发生的次数计算', () => {
+  // 1. 起始 2026-01-31，每月重复，count: 2：2026-01-31 和 2026-03-31 发生，2026-05-31 不发生
+  const month31Event = {
+    date: '2026-01-31',
+    recurrence: { frequency: 'monthly', interval: 1, count: 2 }
+  };
+  assert.equal(occursOn(month31Event, parseDate('2026-01-31')), true);
+  assert.equal(occursOn(month31Event, parseDate('2026-03-31')), true);
+  assert.equal(occursOn(month31Event, parseDate('2026-05-31')), false);
+
+  // 2. 起始 2024-02-29，每年重复，count: 2：2024-02-29 和 2028-02-29 发生，2032-02-29 不发生
+  const leapYearEvent = {
+    date: '2024-02-29',
+    recurrence: { frequency: 'yearly', interval: 1, count: 2 }
+  };
+  assert.equal(occursOn(leapYearEvent, parseDate('2024-02-29')), true);
+  assert.equal(occursOn(leapYearEvent, parseDate('2028-02-29')), true);
+  assert.equal(occursOn(leapYearEvent, parseDate('2032-02-29')), false);
+
+  // 3. 起始 2026-01-15，每月重复，count: 2：2026-02-15 发生，2026-03-15 不发生
+  const month15Event = {
+    date: '2026-01-15',
+    recurrence: { frequency: 'monthly', interval: 1, count: 2 }
+  };
+  assert.equal(occursOn(month15Event, parseDate('2026-02-15')), true);
+  assert.equal(occursOn(month15Event, parseDate('2026-03-15')), false);
+});
