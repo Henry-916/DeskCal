@@ -708,6 +708,19 @@ function bindAgendaItems() {
     button.addEventListener('click', async () => {
       const event = state.events.find((item) => item.id === button.dataset.completeId);
       if (!event) return;
+      const isRecurring = normalizeRecurrence(event).frequency !== 'none';
+      if (isRecurring) {
+        const item = button.closest('.agenda-item');
+        const occurrenceDate = item?.dataset.occurrenceDate || state.selectedDate;
+        if (state.searchQuery.trim()) {
+          openQuickEdit(event.id, occurrenceDate);
+          return;
+        }
+        rememberUndo('完成日程');
+        applyScopedEventChange(event, occurrenceDate, { completed: true }, 'occurrence');
+        await saveEvents('已标记为完成', { label: '撤销', handler: undoLastChange });
+        return;
+      }
       event.completed = !event.completed;
       event.updatedAt = new Date().toISOString();
       await saveEvents(event.completed ? '已标记为完成' : '已恢复为待办');
@@ -1645,13 +1658,13 @@ function bindEvents() {
       reminder.late ? `遗漏提醒：${reminder.title}` : reminder.title
     );
   });
-  window.deskcal.onReminderOpen((eventId) => {
+  window.deskcal.onReminderOpen(({ eventId, occurrenceDate }) => {
     const event = state.events.find((item) => item.id === eventId);
     if (event) {
-      state.selectedDate = event.date;
-      state.viewDate = startOfMonth(parseDate(event.date));
+      state.selectedDate = occurrenceDate;
+      state.viewDate = startOfMonth(parseDate(occurrenceDate));
       render();
-      openEventDialog(eventId, event.date);
+      openEventDialog(eventId, occurrenceDate);
     }
   });
 }

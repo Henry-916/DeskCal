@@ -26,6 +26,7 @@ let isQuitting = false;
 let loadResult = null;
 let boundsSaveTimer = null;
 let pendingBounds = false;
+const activeNotifications = new Set();
 
 const appIconPath = path.join(__dirname, '..', 'assets', 'deskcal-icon.png');
 const iconSvg = `
@@ -280,10 +281,27 @@ function showReminder(event, dateKey, late = false) {
     silent: !appData.settings.sound,
     timeoutType: 'never'
   });
+
+  const cleanup = () => {
+    activeNotifications.delete(notification);
+  };
   notification.on('click', () => {
+    cleanup();
     showWindow();
-    mainWindow.webContents.send('reminder:open', event.id);
+    mainWindow.webContents.send('reminder:open', {
+      eventId: event.id,
+      occurrenceDate: dateKey
+    });
   });
+  notification.on('close', cleanup);
+  notification.on('failed', cleanup);
+
+  if (activeNotifications.size >= 50) {
+    const oldest = activeNotifications.values().next().value;
+    activeNotifications.delete(oldest);
+  }
+  activeNotifications.add(notification);
+
   notification.show();
   mainWindow?.webContents.send('reminder:fired', {
     eventId: event.id,
@@ -298,12 +316,11 @@ function checkReminders(includeMissed = false) {
   const now = new Date();
   let changed = false;
   const alreadySent = new Set(appData.notifications.map((item) => item.token));
-  const candidates = CalendarCore.remindersDue(appData.events, now, {
+  const candidates = CalendarCore.unsentReminders(appData.events, alreadySent, now, {
     maxAgeMs: includeMissed ? 24 * 60 * 60000 : 65000
   });
 
   for (const candidate of candidates) {
-    if (alreadySent.has(candidate.token)) continue;
     showReminder(candidate.event, candidate.occurrenceKey, candidate.ageMs > 65000);
     appData.notifications.push({
       token: candidate.token,
@@ -336,39 +353,12 @@ function registerIpc() {
 
   ipcMain.handle('events:save', (_event, events) => {
     if (!Array.isArray(events)) throw new Error('日程数据格式不正确');
-    const previousById = new Map(appData.events.map((event) => [event.id, event]));
-    const changedIds = new Set();
     const normalizedEvents = DataModel.normalizeEvents(events);
-    for (const event of normalizedEvents) {
-      const previous = previousById.get(event.id);
-      const oldSignature = previous
-        ? JSON.stringify([
-            previous.date,
-            previous.startTime,
-            previous.allDay,
-            previous.recurrence,
-            previous.exceptions,
-            previous.reminders
-          ])
-        : '';
-      const newSignature = JSON.stringify([
-        event.date,
-        event.startTime,
-        event.allDay,
-        event.recurrence,
-        event.exceptions,
-        event.reminders
-      ]);
-      if (oldSignature !== newSignature) changedIds.add(event.id);
-      previousById.delete(event.id);
-    }
-    for (const deletedId of previousById.keys()) changedIds.add(deletedId);
+    const existingIds = new Set(normalizedEvents.map((event) => event.id));
     appData.events = normalizedEvents;
-    if (changedIds.size) {
-      appData.notifications = appData.notifications.filter(
-        (notification) => !changedIds.has(notification.eventId)
-      );
-    }
+    appData.notifications = appData.notifications.filter((notification) =>
+      existingIds.has(notification.eventId)
+    );
     persistData();
     checkReminders(false);
     return { ok: true };

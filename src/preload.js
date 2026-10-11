@@ -15,5 +15,5 @@ contextBridge.exposeInMainWorld('deskcal', {
   onReminder: (callback) =>
     ipcRenderer.on('reminder:fired', (_event, value) => callback(value)),
   onReminderOpen: (callback) =>
-    ipcRenderer.on('reminder:open', (_event, eventId) => callback(eventId))
+    ipcRenderer.on('reminder:open', (_event, payload) => callback(payload))
 });

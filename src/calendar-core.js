@@ -64,9 +64,15 @@
   }
 
   function weekdaysThrough(start, target) {
-    let count = 0;
-    for (let date = new Date(start); date <= target; date = addDays(date, 1)) {
-      if (date.getDay() !== 0 && date.getDay() !== 6) count += 1;
+    const diff = daysBetween(start, target);
+    if (diff < 0) return 0;
+    const startDayOfWeek = start.getDay();
+    const fullWeeks = Math.floor(diff / 7);
+    let count = fullWeeks * 5;
+    const remainder = diff % 7;
+    for (let i = 0; i <= remainder; i += 1) {
+      const day = (startDayOfWeek + i) % 7;
+      if (day !== 0 && day !== 6) count += 1;
     }
     return count;
   }
@@ -130,16 +136,28 @@
     return !recurrence.count || number <= recurrence.count;
   }
 
-  function occurrenceDateTime(event, date) {
+  function occurrenceTime(event) {
     const time = event.allDay ? event.allDayReminderTime || '09:00' : event.startTime || '09:00';
     const match = /^(\d{1,2}):(\d{2})$/.exec(time);
     const hour = match ? Math.min(23, Number(match[1])) : 9;
     const minute = match ? Math.min(59, Number(match[2])) : 0;
+    return `${pad(hour)}:${pad(minute)}`;
+  }
+
+  function occurrenceDateTime(event, date) {
+    const time = occurrenceTime(event);
+    const match = /^(\d{2}):(\d{2})$/.exec(time);
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute, 0, 0);
   }
 
-  function reminderToken(eventId, occurrenceKey, minutes) {
+  function legacyReminderToken(eventId, occurrenceKey, minutes) {
     return `${eventId}|${occurrenceKey}|${minutes}`;
+  }
+
+  function reminderToken(eventId, occurrenceKey, minutes, baseTime) {
+    return `${eventId}|${occurrenceKey}|${minutes}|${baseTime}`;
   }
 
   function remindersDue(events, now = new Date(), options = {}) {
@@ -159,6 +177,7 @@
       for (const event of activeEvents) {
         if (event.completed || event.cancelled || event.deletedAt) continue;
         if (!occursOn(event, occurrenceDate)) continue;
+        const baseTime = occurrenceTime(event);
         const start = occurrenceDateTime(event, occurrenceDate);
         const reminders = Array.isArray(event.reminders) ? event.reminders : [];
         for (const rawMinutes of reminders) {
@@ -174,12 +193,19 @@
             minutes,
             triggerAt,
             ageMs,
-            token: reminderToken(event.id, occurrenceKey, minutes)
+            token: reminderToken(event.id, occurrenceKey, minutes, baseTime),
+            legacyToken: legacyReminderToken(event.id, occurrenceKey, minutes)
           });
         }
       }
     }
     return due.sort((a, b) => a.triggerAt - b.triggerAt);
+  }
+
+  function unsentReminders(events, sentTokens = new Set(), now = new Date(), options = {}) {
+    const due = remindersDue(events, now, options);
+    const sent = sentTokens instanceof Set ? sentTokens : new Set(sentTokens || []);
+    return due.filter((item) => !sent.has(item.token) && !sent.has(item.legacyToken));
   }
 
   return {
@@ -194,6 +220,8 @@
     occursOn,
     occurrenceDateTime,
     reminderToken,
-    remindersDue
+    legacyReminderToken,
+    remindersDue,
+    unsentReminders
   };
 });

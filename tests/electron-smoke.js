@@ -260,6 +260,128 @@ async function run() {
   assert.equal(f06Result.movedEventRemainsMoved, true, '被移动的日程保持移动后的状态');
 
   console.log('F06 regression smoke test passed:', JSON.stringify(f06Result));
+
+  // F08 阶段验收：全新加载页面并在干净状态下验证重复日程完成当次、搜索行为及单次日程
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const f08Result = await window.webContents.executeJavaScript(`
+    (async () => {
+      window.confirm = () => true;
+      window.prompt = () => '测试日历';
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+
+      const today = state.selectedDate;
+
+      // 1. 准备一条从今天开始每天重复的日程
+      const dailySeries = {
+        id: 'f08-daily-series',
+        title: 'F08 每日重复日程',
+        date: today,
+        allDay: true,
+        startTime: '',
+        endTime: '',
+        allDayReminderTime: '09:00',
+        reminders: [],
+        recurrence: { frequency: 'daily', interval: 1, until: null, count: null },
+        repeat: 'daily',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      state.events = [dailySeries];
+      render();
+
+      // 在今天的列表里点它的 ✓
+      const completeBtn = document.querySelector(\`.agenda-item[data-id="\${dailySeries.id}"] .complete-button\`);
+      completeBtn?.click();
+      await wait(100);
+
+      const seriesAfterComplete = state.events.find((e) => e.id === dailySeries.id);
+      const detachedEvent = state.events.find((e) => e.id !== dailySeries.id);
+
+      const seriesCompletedIsFalse = seriesAfterComplete?.completed === false;
+      const exceptionsIncludeToday = Array.isArray(seriesAfterComplete?.exceptions) && seriesAfterComplete.exceptions.includes(today);
+      const detachedCompletedIsTrue = detachedEvent?.completed === true;
+      const detachedIsSingle = detachedEvent?.recurrence?.frequency === 'none';
+      const detachedDateIsToday = detachedEvent?.date === today;
+
+      // 验证撤销功能 (undo action)
+      const hadUndoSnapshot = Boolean(state.undoSnapshot);
+      await undoLastChange();
+      const seriesAfterUndo = state.events.find((e) => e.id === dailySeries.id);
+      const undoRestored = state.events.length === 1 && (seriesAfterUndo?.exceptions || []).length === 0;
+
+      // 2. 搜索结果里的重复日程：点 ✓ 应打开快速编辑卡，而不是直接完成系列
+      state.events = [structuredClone(dailySeries)];
+      state.searchQuery = '每日';
+      render();
+      const searchItemBtn = document.querySelector(\`.agenda-item[data-id="\${dailySeries.id}"] .complete-button\`);
+      searchItemBtn?.click();
+      await wait(50);
+      const quickEditOpenedFromSearch = Boolean(document.querySelector('#quickEditDialog')?.open);
+      document.querySelector('#quickEditDialog')?.close();
+      const seriesStillNotCompletedInSearch = state.events.find((e) => e.id === dailySeries.id)?.completed === false;
+
+      // 3. 非重复日程：行为不变（直接翻转 completed）
+      state.searchQuery = '';
+      const nonrecEvent = {
+        id: 'f08-nonrec',
+        title: 'F08 单次日程',
+        date: today,
+        allDay: true,
+        startTime: '',
+        endTime: '',
+        allDayReminderTime: '09:00',
+        reminders: [],
+        recurrence: { frequency: 'none', interval: 1, until: null, count: null },
+        repeat: 'none',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      state.events = [nonrecEvent];
+      render();
+      const nonrecBtn = document.querySelector(\`.agenda-item[data-id="\${nonrecEvent.id}"] .complete-button\`);
+      nonrecBtn?.click();
+      await wait(50);
+      const nonrecCompletedFlipped = state.events.find((e) => e.id === nonrecEvent.id)?.completed === true;
+
+      return {
+        seriesCompletedIsFalse,
+        exceptionsIncludeToday,
+        detachedCompletedIsTrue,
+        detachedIsSingle,
+        detachedDateIsToday,
+        hadUndoSnapshot,
+        undoRestored,
+        quickEditOpenedFromSearch,
+        seriesStillNotCompletedInSearch,
+        nonrecCompletedFlipped
+      };
+    })()
+  `);
+
+  assert.equal(f08Result.seriesCompletedIsFalse, true, '原系列的 completed 仍为 false');
+  assert.equal(f08Result.exceptionsIncludeToday, true, '原系列的 exceptions 应包含今天');
+  assert.equal(f08Result.detachedCompletedIsTrue, true, '独立出来的当次日程 completed 应为 true');
+  assert.equal(f08Result.detachedIsSingle, true, '独立出来的当次日程应为单次不重复日程');
+  assert.equal(f08Result.detachedDateIsToday, true, '独立出来的当次日程日期应为今天');
+  assert.equal(f08Result.hadUndoSnapshot, true, '完成当次操作前应生成撤销快照');
+  assert.equal(f08Result.undoRestored, true, '撤销后应恢复原系列并移除分离日程');
+  assert.equal(f08Result.quickEditOpenedFromSearch, true, '搜索模式下点击重复日程 ✓ 应打开快速编辑卡');
+  assert.equal(f08Result.seriesStillNotCompletedInSearch, true, '搜索模式下点击重复日程 ✓ 不得直接修改系列 completed');
+  assert.equal(f08Result.nonrecCompletedFlipped, true, '非重复日程点击 ✓ 应正常翻转完成状态');
+
+  console.log('F08 regression smoke test passed:', JSON.stringify(f08Result));
   window.destroy();
 }
 
