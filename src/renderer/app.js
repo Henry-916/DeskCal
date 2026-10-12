@@ -1183,7 +1183,7 @@ function updateStatusText(update) {
     case 'downloading':
       return `正在下载 ${update.version}… ${update.percent || 0}%`;
     case 'downloaded':
-      return `${update.version} 已下载完成，重启后生效`;
+      return `${update.version} 已下载。安装时 DeskCal 会关闭并打开安装程序`;
     case 'error':
       return `${current} · ${update.message}`;
     case 'unsupported':
@@ -2068,6 +2068,7 @@ async function init() {
     state.update = initial.update || state.update;
     applySavedView();
     render();
+    if (initial.justUpdated) showToast(`已更新到 ${initial.version}`);
   } catch (error) {
     showToast(error.message || '无法加载本地数据', '启动失败');
   }

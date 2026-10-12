@@ -24,6 +24,9 @@ const { DEFAULT_DATA } = DataModel;
 let mainWindow = null;
 let desktopPin = null;
 let dialogOpen = false;
+// 安装程序装完新版本后会带 --updated 重新打开应用
+const launchedAfterUpdate = process.argv.includes('--updated');
+let updateNoticePending = launchedAfterUpdate;
 let tray = null;
 let appData = structuredClone(DEFAULT_DATA);
 let dataPath = '';
@@ -141,6 +144,13 @@ function clickThroughActive() {
   return Boolean(appData.settings.clickThrough) && !dialogOpen;
 }
 
+// “已更新”只提示一次
+function takeUpdateNotice() {
+  const pending = updateNoticePending;
+  updateNoticePending = false;
+  return pending;
+}
+
 function applyLoginItem() {
   const loginSettings = {
     openAtLogin: Boolean(appData.settings.startOnBoot),
@@ -203,7 +213,9 @@ function createWindow() {
   applyWindowSettings();
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow.showInactive();
+    // 刚更新完要让用户看得到：调到前面，而不是悄悄出现在桌面底层
+    if (launchedAfterUpdate) showWindow();
+    else mainWindow.showInactive();
     if (loadResult && (loadResult.corruptPath || loadResult.source === 'backup')) {
       const isRecovered = loadResult.source === 'backup';
       const message = isRecovered
@@ -413,6 +425,7 @@ function registerIpc() {
     calendars: appData.calendars,
     settings: appData.settings,
     update: Updater.status(),
+    justUpdated: takeUpdateNotice(),
     acrylicSupported,
     platform: process.platform,
     version: app.getVersion(),

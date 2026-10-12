@@ -60,7 +60,9 @@ function load() {
   if (autoUpdater) return autoUpdater;
   autoUpdater = require('electron-updater').autoUpdater;
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // 只在用户点了“重启并安装”时安装。退出时顺带静默安装的话，用户看不到也不知道，
+  // 这期间重新打开应用还会被安装程序关掉
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.disableWebInstaller = true;
   const feed = devFeed();
   if (feed) {
@@ -114,10 +116,12 @@ function download() {
   load().downloadUpdate().catch(() => {});
 }
 
-// 静默安装，装完自动重新打开
+// 显示安装程序窗口，而不是静默安装：静默时进度和失败原因都看不到，
+// 装给“所有用户”的还申请不到管理员权限，结果就是应用退出后什么也没发生。
+// 安装程序在更新时会跳过选项页，直接显示进度，完成页默认勾选重新打开。
 function install() {
   if (status.state !== 'downloaded') return;
-  load().quitAndInstall(true, true);
+  load().quitAndInstall(false, true);
 }
 
 module.exports = {
