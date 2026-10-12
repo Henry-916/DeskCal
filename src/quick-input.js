@@ -177,37 +177,113 @@
     return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
   }
 
-  const TIME_WORDS = '(?:凌晨|早上|上午|中午|下午|晚上)';
-  const CHINESE_NUM_STR = '(?:\\d{1,2}|[零一二两三四五六七八九十]+)';
+  function parseChineseTimePoint(text, startIndex, defaultPeriod = null, isEnd = false) {
+    const sub = text.slice(startIndex);
+    const re =
+      /^(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?(\d{1,2}|[零一二两三四五六七八九十]+)点(?:(半|一刻|三刻)|(\d{1,2}|[零一二两三四五六七八九十]+)(分?))?/;
+    const match = re.exec(sub);
+    if (!match) return null;
 
-  function parseSingleChineseComponent(periodStr, hourStr, specialMinStr, normalMinStr) {
-    const rawHour = parseNumberToken(hourStr);
+    const period = match[1] || defaultPeriod || null;
+    const rawHour = parseNumberToken(match[2]);
     if (rawHour === null) return null;
-    const period = periodStr || null;
-    let minute = 0;
-    if (specialMinStr === '半') minute = 30;
-    else if (specialMinStr === '一刻') minute = 15;
-    else if (specialMinStr === '三刻') minute = 45;
-    else if (normalMinStr) {
-      const parsedMin = parseNumberToken(normalMinStr);
-      minute = parsedMin !== null ? Math.min(59, Math.max(0, parsedMin)) : 0;
+
+    const isChineseHour = !/^\d+$/.test(match[2]);
+    if (isChineseHour && !period) {
+      // R3: Chinese hour without period is not treated as a time
+      return null;
     }
 
-    const rolloverDay = period === '晚上' && rawHour === 12 ? 1 : 0;
-    const hour = normalizeHour(rawHour, period);
-    return { hour, minute, period, rawHour, rolloverDay };
+    let minute = 0;
+    let matchedLength = match[0].length;
+
+    if (match[3]) {
+      if (match[3] === '半') minute = 30;
+      else if (match[3] === '一刻') minute = 15;
+      else if (match[3] === '三刻') minute = 45;
+    } else if (match[4]) {
+      const isArabicMin = /^\d+$/.test(match[4]);
+      const hasFen = match[5] === '分';
+      if (isArabicMin) {
+        minute = Math.min(59, Math.max(0, Number(match[4])));
+      } else {
+        const minStr = match[4];
+        if (hasFen) {
+          if (minStr.startsWith('零')) {
+            minute = parseNumberToken(minStr.slice(1)) || 0;
+          } else {
+            minute = parseNumberToken(minStr) || 0;
+          }
+        } else {
+          if (minStr.startsWith('零')) {
+            minute = parseNumberToken(minStr.slice(1)) || 0;
+          } else {
+            const val = parseNumberToken(minStr);
+            if (val !== null && val >= 10) {
+              minute = val;
+            } else {
+              // R2: single Chinese digit without 分 is not a minute
+              minute = 0;
+              const dianIdx = match[0].indexOf('点');
+              matchedLength = dianIdx + 1;
+            }
+          }
+        }
+      }
+    }
+
+    let hour;
+    let rolloverDay = 0;
+    if (period === '晚上' && rawHour === 12) {
+      hour = 0;
+      rolloverDay = 1;
+    } else if (period) {
+      hour = normalizeHour(rawHour, period);
+    } else {
+      hour = Math.max(0, Math.min(23, rawHour));
+    }
+
+    return {
+      hour,
+      minute,
+      period,
+      rawHour,
+      rolloverDay,
+      matchedLength,
+      span: [startIndex, startIndex + matchedLength]
+    };
   }
 
   function parseTimeToken(text) {
-    // 1. Digital range: 15:00-17:00, 11:00-01:00
+    // 1. Digital range: e.g. 15:00-17:00, 下午3:00-5:00, 上午10:00到下午2:00, 11:00-01:00
     const digitalRangeRegex =
-      /([01]?\d|2[0-3]):([0-5]\d)\s*(?:到|至|-|~|—)\s*([01]?\d|2[0-3]):([0-5]\d)/;
+      /(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?([01]?\d|2[0-3]):([0-5]\d)\s*(?:到|至|-|~|—)\s*(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?([01]?\d|2[0-3]):([0-5]\d)/;
     const digitalRangeMatch = digitalRangeRegex.exec(text);
     if (digitalRangeMatch) {
-      const startHour = Number(digitalRangeMatch[1]);
-      const startMinute = Number(digitalRangeMatch[2]);
-      let endHour = Number(digitalRangeMatch[3]);
-      let endMinute = Number(digitalRangeMatch[4]);
+      const period1 = digitalRangeMatch[1] || null;
+      const rawStartHour = Number(digitalRangeMatch[2]);
+      const startMinute = Number(digitalRangeMatch[3]);
+      const period2 = digitalRangeMatch[4] || period1;
+      const rawEndHour = Number(digitalRangeMatch[5]);
+      let endMinute = Number(digitalRangeMatch[6]);
+
+      let rolloverDay = 0;
+      let startHour;
+      if (period1 === '晚上' && rawStartHour === 12) {
+        startHour = 0;
+        rolloverDay = 1;
+      } else if (period1) {
+        startHour = normalizeHour(rawStartHour, period1);
+      } else {
+        startHour = rawStartHour;
+      }
+
+      let endHour;
+      if (period2) {
+        endHour = normalizeHour(rawEndHour, period2);
+      } else {
+        endHour = rawEndHour;
+      }
 
       const startTotal = startHour * 60 + startMinute;
       let endTotal = endHour * 60 + endMinute;
@@ -228,38 +304,25 @@
       return {
         startTime: `${pad(startHour)}:${pad(startMinute)}`,
         endTime: `${pad(endHour)}:${pad(endMinute)}`,
-        rolloverDay: 0,
+        rolloverDay,
         span: [digitalRangeMatch.index, digitalRangeMatch.index + digitalRangeMatch[0].length]
       };
     }
 
-    // 2. Chinese range: 下午3点到5点, 上午10点到下午2点, 上午11点到1点
-    const chineseRangeRegex = new RegExp(
-      `(${TIME_WORDS})?\\s*(${CHINESE_NUM_STR})点(?:(半|一刻|三刻)|(${CHINESE_NUM_STR})分?)?\\s*(到|至|-|~|—)\\s*(${TIME_WORDS})?\\s*(${CHINESE_NUM_STR})点(?:(半|一刻|三刻)|(${CHINESE_NUM_STR})分?)?`
-    );
-    const chineseRangeMatch = chineseRangeRegex.exec(text);
-    if (chineseRangeMatch) {
-      const startComp = parseSingleChineseComponent(
-        chineseRangeMatch[1],
-        chineseRangeMatch[2],
-        chineseRangeMatch[3],
-        chineseRangeMatch[4]
-      );
-      if (startComp) {
-        let endPeriod = chineseRangeMatch[6] || startComp.period;
-        const rawEndHour = parseNumberToken(chineseRangeMatch[7]);
-        if (rawEndHour !== null) {
-          let endMinute = 0;
-          if (chineseRangeMatch[8] === '半') endMinute = 30;
-          else if (chineseRangeMatch[8] === '一刻') endMinute = 15;
-          else if (chineseRangeMatch[8] === '三刻') endMinute = 45;
-          else if (chineseRangeMatch[9]) {
-            const parsedMin = parseNumberToken(chineseRangeMatch[9]);
-            endMinute = parsedMin !== null ? Math.min(59, Math.max(0, parsedMin)) : 0;
-          }
+    // 2. Chinese time: ranges or single
+    for (let i = 0; i < text.length; i += 1) {
+      const point1 = parseChineseTimePoint(text, i, null, false);
+      if (!point1) continue;
 
-          let endHour = normalizeHour(rawEndHour, endPeriod);
-          const startTotal = startComp.hour * 60 + startComp.minute;
+      const after1 = text.slice(point1.span[1]);
+      const connMatch = /^\s*(到|至|-|~|—)\s*/.exec(after1);
+      if (connMatch) {
+        const idx2 = point1.span[1] + connMatch[0].length;
+        const point2 = parseChineseTimePoint(text, idx2, point1.period, true);
+        if (point2) {
+          let endHour = point2.hour;
+          let endMinute = point2.minute;
+          const startTotal = point1.hour * 60 + point1.minute;
           let endTotal = endHour * 60 + endMinute;
 
           if (endTotal <= startTotal) {
@@ -276,51 +339,50 @@
           }
 
           return {
-            startTime: `${pad(startComp.hour)}:${pad(startComp.minute)}`,
+            startTime: `${pad(point1.hour)}:${pad(point1.minute)}`,
             endTime: `${pad(endHour)}:${pad(endMinute)}`,
-            rolloverDay: startComp.rolloverDay,
-            span: [chineseRangeMatch.index, chineseRangeMatch.index + chineseRangeMatch[0].length]
+            rolloverDay: point1.rolloverDay,
+            span: [point1.span[0], point2.span[1]]
           };
         }
       }
-    }
 
-    // 3. Digital single: 15:30
-    const digitalSingleRegex = /(?:^|[^\d])([01]?\d|2[0-3]):([0-5]\d)(?=$|[^\d])/;
-    const digitalSingleMatch = digitalSingleRegex.exec(text);
-    if (digitalSingleMatch) {
-      const matchStart = digitalSingleMatch.index + (digitalSingleMatch[0].startsWith(':') || /^\D/.test(digitalSingleMatch[0]) ? 1 : 0);
-      const tokenStr = `${digitalSingleMatch[1]}:${digitalSingleMatch[2]}`;
-      const startHour = Number(digitalSingleMatch[1]);
-      const startMinute = Number(digitalSingleMatch[2]);
       return {
-        startTime: `${pad(startHour)}:${pad(startMinute)}`,
-        endTime: endTimeFor(startHour, startMinute),
-        rolloverDay: 0,
-        span: [matchStart, matchStart + tokenStr.length]
+        startTime: `${pad(point1.hour)}:${pad(point1.minute)}`,
+        endTime: endTimeFor(point1.hour, point1.minute),
+        rolloverDay: point1.rolloverDay,
+        span: point1.span
       };
     }
 
-    // 4. Chinese single: 晚上12点半, 下午3点, 3点
-    const chineseSingleRegex = new RegExp(
-      `(${TIME_WORDS})?\\s*(${CHINESE_NUM_STR})点(?:(半|一刻|三刻)|(${CHINESE_NUM_STR})分?)?`
-    );
-    const chineseSingleMatch = chineseSingleRegex.exec(text);
-    if (chineseSingleMatch) {
-      const comp = parseSingleChineseComponent(
-        chineseSingleMatch[1],
-        chineseSingleMatch[2],
-        chineseSingleMatch[3],
-        chineseSingleMatch[4]
-      );
-      if (comp) {
-        return {
-          startTime: `${pad(comp.hour)}:${pad(comp.minute)}`,
-          endTime: endTimeFor(comp.hour, comp.minute),
-          rolloverDay: comp.rolloverDay,
-          span: [chineseSingleMatch.index, chineseSingleMatch.index + chineseSingleMatch[0].length]
-        };
+    // 3. Digital single: e.g. 下午3:30, 晚上12:30, 15:30
+    const digitalSingleRegex =
+      /(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?([01]?\d|2[0-3]):([0-5]\d)/g;
+    let dsMatch;
+    while ((dsMatch = digitalSingleRegex.exec(text)) !== null) {
+      if (!dsMatch[1] && dsMatch.index > 0 && /\d/.test(text[dsMatch.index - 1])) {
+        continue;
       }
+      const period = dsMatch[1] || null;
+      const rawHour = Number(dsMatch[2]);
+      const minute = Number(dsMatch[3]);
+      let hour;
+      let rolloverDay = 0;
+      if (period === '晚上' && rawHour === 12) {
+        hour = 0;
+        rolloverDay = 1;
+      } else if (period) {
+        hour = normalizeHour(rawHour, period);
+      } else {
+        hour = rawHour;
+      }
+
+      return {
+        startTime: `${pad(hour)}:${pad(minute)}`,
+        endTime: endTimeFor(hour, minute),
+        rolloverDay,
+        span: [dsMatch.index, dsMatch.index + dsMatch[0].length]
+      };
     }
 
     return null;

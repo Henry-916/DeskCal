@@ -216,3 +216,122 @@ test('F15 时间解析补全（午夜顺延、中文数字、时间段、大后�
   const r14 = parseQuickInput('3点开会', SUN_OCT11);
   assert.equal(r14.startTime, '03:00');
 });
+
+function assertQuickCase(input, expected, now = SUN_OCT11) {
+  const res = parseQuickInput(input, now);
+  assert.equal(res.ok, true, `解析应成功: ${input}`);
+  if (expected.date) {
+    assert.equal(res.date, expected.date, `${input} 日期不匹配`);
+  } else {
+    assert.equal(res.date, '2026-10-11', `${input} 默认日期应为 2026-10-11`);
+  }
+  if (expected.allDay) {
+    assert.equal(res.allDay, true, `${input} 应为全天日程`);
+    assert.equal(res.startTime, '', `${input} 全天开始时间应为空`);
+    assert.equal(res.endTime, '', `${input} 全天结束时间应为空`);
+  } else {
+    assert.equal(res.allDay, false, `${input} 应为定时日程`);
+    assert.equal(res.startTime, expected.startTime, `${input} 开始时间不匹配`);
+    assert.equal(res.endTime, expected.endTime, `${input} 结束时间不匹配`);
+  }
+  assert.equal(res.title, expected.title, `${input} 标题不匹配`);
+}
+
+test('R2 单个中文数字必须带「分」才算分钟（验收表 10 条）', () => {
+  // 1. 明天下午3点一起吃饭
+  assertQuickCase('明天下午3点一起吃饭', { date: '2026-10-12', startTime: '15:00', endTime: '16:00', title: '一起吃饭' });
+  // 7. 下午三点五分出发
+  assertQuickCase('下午三点五分出发', { startTime: '15:05', endTime: '16:05', title: '出发' });
+  // 8. 下午三点十分开会
+  assertQuickCase('下午三点十分开会', { startTime: '15:10', endTime: '16:10', title: '开会' });
+  // 9. 下午三点二十出发
+  assertQuickCase('下午三点二十出发', { startTime: '15:20', endTime: '16:20', title: '出发' });
+  // 10. 上午九点四十五分晨会
+  assertQuickCase('上午九点四十五分晨会', { startTime: '09:45', endTime: '10:45', title: '晨会' });
+  // 11. 下午三点零五出发
+  assertQuickCase('下午三点零五出发', { startTime: '15:05', endTime: '16:05', title: '出发' });
+  // 12. 下午3点零五分出发
+  assertQuickCase('下午3点零五分出发', { startTime: '15:05', endTime: '16:05', title: '出发' });
+  // 13. 下午3点15开会
+  assertQuickCase('下午3点15开会', { startTime: '15:15', endTime: '16:15', title: '开会' });
+  // 14. 下午3点15分开会
+  assertQuickCase('下午3点15分开会', { startTime: '15:15', endTime: '16:15', title: '开会' });
+  // 15. 下午三点半到五点一起评审
+  assertQuickCase('下午三点半到五点一起评审', { startTime: '15:30', endTime: '17:00', title: '一起评审' });
+});
+
+test('R3 中文数字小时必须带时段词（验收表 17 条）', () => {
+  // 2. 下午3点一对一沟通
+  assertQuickCase('下午3点一对一沟通', { startTime: '15:00', endTime: '16:00', title: '一对一沟通' });
+  // 3. 下午三点一对一沟通
+  assertQuickCase('下午三点一对一沟通', { startTime: '15:00', endTime: '16:00', title: '一对一沟通' });
+  // 4. 明天上午10点三方会议
+  assertQuickCase('明天上午10点三方会议', { date: '2026-10-12', startTime: '10:00', endTime: '11:00', title: '三方会议' });
+  // 5. 晚上8点两个人看电影
+  assertQuickCase('晚上8点两个人看电影', { startTime: '20:00', endTime: '21:00', title: '两个人看电影' });
+  // 6. 晚上九点一起跑步
+  assertQuickCase('晚上九点一起跑步', { startTime: '21:00', endTime: '22:00', title: '一起跑步' });
+  // 16. 讨论一点小事
+  assertQuickCase('讨论一点小事', { allDay: true, title: '讨论一点小事' });
+  // 17. 提两点建议
+  assertQuickCase('提两点建议', { allDay: true, title: '提两点建议' });
+  // 18. 整理三点结论
+  assertQuickCase('整理三点结论', { allDay: true, title: '整理三点结论' });
+  // 19. 明天早一点去公司
+  assertQuickCase('明天早一点去公司', { allDay: true, date: '2026-10-12', title: '早一点去公司' });
+  // 20. 一点点进步
+  assertQuickCase('一点点进步', { allDay: true, title: '一点点进步' });
+  // 21. 明天十点开会
+  assertQuickCase('明天十点开会', { allDay: true, date: '2026-10-12', title: '十点开会' });
+  // 22. 明天一点半午休
+  assertQuickCase('明天一点半午休', { allDay: true, date: '2026-10-12', title: '一点半午休' });
+  // 23. 明天上午讨论三点建议
+  assertQuickCase('明天上午讨论三点建议', { allDay: true, date: '2026-10-12', title: '上午讨论三点建议' });
+  // 24. 明天下午三点开会
+  assertQuickCase('明天下午三点开会', { date: '2026-10-12', startTime: '15:00', endTime: '16:00', title: '开会' });
+  // 25. 下午一点一刻出发
+  assertQuickCase('下午一点一刻出发', { startTime: '13:15', endTime: '14:15', title: '出发' });
+  // 26. 下午三点到五点评审
+  assertQuickCase('下午三点到五点评审', { startTime: '15:00', endTime: '17:00', title: '评审' });
+  // 27. 3点开会
+  assertQuickCase('3点开会', { startTime: '03:00', endTime: '04:00', title: '开会' });
+});
+
+test('R4 时段词对冒号写法生效及时间段（验收表 11 条）', () => {
+  // 28. 下午3:30开会
+  assertQuickCase('下午3:30开会', { startTime: '15:30', endTime: '16:30', title: '开会' });
+  // 29. 晚上8:30看电影
+  assertQuickCase('晚上8:30看电影', { startTime: '20:30', endTime: '21:30', title: '看电影' });
+  // 30. 明天上午9:30站会
+  assertQuickCase('明天上午9:30站会', { date: '2026-10-12', startTime: '09:30', endTime: '10:30', title: '站会' });
+  // 31. 明天 下午 3:30 开会
+  assertQuickCase('明天 下午 3:30 开会', { date: '2026-10-12', startTime: '15:30', endTime: '16:30', title: '开会' });
+  // 32. 下午3:00-5:00 评审
+  assertQuickCase('下午3:00-5:00 评审', { startTime: '15:00', endTime: '17:00', title: '评审' });
+  // 33. 上午10:00到下午2:00 培训
+  assertQuickCase('上午10:00到下午2:00 培训', { startTime: '10:00', endTime: '14:00', title: '培训' });
+  // 34. 晚上12:30对账
+  assertQuickCase('晚上12:30对账', { date: '2026-10-12', startTime: '00:30', endTime: '01:30', title: '对账' });
+  // 35. 15:30 面试
+  assertQuickCase('15:30 面试', { startTime: '15:30', endTime: '16:30', title: '面试' });
+  // 36. 明天 15:30 面试
+  assertQuickCase('明天 15:30 面试', { date: '2026-10-12', startTime: '15:30', endTime: '16:30', title: '面试' });
+  // 37. 15:00-17:00 评审
+  assertQuickCase('15:00-17:00 评审', { startTime: '15:00', endTime: '17:00', title: '评审' });
+  // 38. 11:00-01:00 会议
+  assertQuickCase('11:00-01:00 会议', { startTime: '11:00', endTime: '13:00', title: '会议' });
+});
+
+test('9.4 本轮不处理行为保持（低成本保留项验证）', () => {
+  // 1. 阿拉伯数字分钟后面跟着量词时的误判保留
+  assertQuickCase('下午3点5个人面试', { startTime: '15:05', endTime: '16:05', title: '个人面试' });
+
+  // 2. 「今晚」不识别为时段词，按全天处理
+  assertQuickCase('今晚聚餐', { allDay: true, title: '今晚聚餐' });
+
+  // 3. 24点截断按 23:00 处理
+  assertQuickCase('晚上24点跨年', { startTime: '23:00', endTime: '23:59', title: '跨年' });
+
+  // 4. 「晚上10点到12点」结束时间退回 +60min 为 23:00
+  assertQuickCase('晚上10点到12点评审', { startTime: '22:00', endTime: '23:00', title: '评审' });
+});
