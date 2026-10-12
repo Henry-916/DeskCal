@@ -78,6 +78,7 @@ test('日程规范化会清理非法值并保留多个提醒', () => {
     count: null
   });
   assert.equal(event.color, '#6750e8');
+  assert.equal(event.customColor, false);
 });
 
 test('无效日程和重复 ID 不会进入存储', () => {

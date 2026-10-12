@@ -16,6 +16,12 @@ test('渲染脚本引用的固定ID均存在于页面', () => {
   assert.deepEqual(missing, []);
 });
 
+test('渲染脚本不使用系统的 confirm / prompt / alert', () => {
+  // 系统对话框关闭后页面会丢失输入焦点，必须用页面内的 askConfirm / askText
+  const calls = script.match(/(?<![\w.])(?:window\.)?(?:confirm|prompt|alert)\(/g) || [];
+  assert.deepEqual(calls, []);
+});
+
 test('页面先加载共享日期逻辑再加载应用脚本', () => {
   const lunarRuntimePosition = html.indexOf('lunar-javascript/lunar.js');
   const chineseCalendarPosition = html.indexOf('../chinese-calendar.js');

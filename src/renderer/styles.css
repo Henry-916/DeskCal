@@ -199,6 +199,11 @@ svg {
   opacity: 1;
 }
 
+/* 鼠标穿透时什么都点不到，悬停时就不要把按钮显示出来误导人 */
+:root[data-window-mode="desktop"][data-click-through="true"] .app-shell:hover .reveal {
+  opacity: 0;
+}
+
 .titlebar {
   display: flex;
   align-items: center;
@@ -1225,6 +1230,15 @@ svg {
   font-size: var(--fs-caption);
 }
 
+.color-picker .link-button {
+  margin-left: auto;
+  font-size: var(--fs-caption);
+}
+
+.ask-message {
+  line-height: 1.6;
+}
+
 .modal-actions {
   display: flex;
   align-items: center;
@@ -1515,14 +1529,22 @@ svg {
   text-align: center;
 }
 
+/* 提示条用 popover 放进顶层，这样弹窗开着时它也能显示在弹窗上面 */
 .toast-region {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 100;
-  display: flex;
+  inset: auto 16px 16px auto;
   flex-direction: column;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
+}
+
+.toast-region:popover-open {
+  display: flex;
 }
 
 .toast {

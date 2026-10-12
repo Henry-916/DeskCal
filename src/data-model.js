@@ -100,6 +100,7 @@ function normalizeEvent(value, now = new Date()) {
     calendarId: cleanText(value.calendarId, 100) || DEFAULT_CALENDAR_ID,
     category: cleanText(value.category, 50) || 'work',
     color: cleanColor(value.color),
+    customColor: Boolean(value.customColor),
     location: cleanText(value.location, 200),
     notes: cleanText(value.notes, 2000),
     completed: Boolean(value.completed),

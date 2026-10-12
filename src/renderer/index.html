@@ -201,7 +201,8 @@
             <span>颜色</span>
             <div class="color-picker">
               <input id="eventColor" type="color" value="#6750e8" />
-              <span id="eventColorText">#6750E8</span>
+              <span id="eventColorText">跟随日历</span>
+              <button id="eventColorReset" type="button" class="link-button hidden">跟随日历</button>
             </div>
           </label>
         </div>
@@ -513,7 +514,21 @@
       </div>
     </dialog>
 
-    <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+    <dialog id="askDialog" class="modal scope-modal">
+      <form id="askForm" method="dialog">
+        <p id="askMessage" class="ask-message"></p>
+        <label id="askInputField" class="field hidden">
+          <input id="askInput" maxlength="50" autocomplete="off" />
+        </label>
+        <div class="modal-actions">
+          <span class="action-spacer"></span>
+          <button id="askCancelButton" type="button" class="secondary-button">取消</button>
+          <button id="askConfirmButton" type="submit" class="primary-button">确定</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toastRegion" class="toast-region" popover="manual" aria-live="polite"></div>
     <script src="../../node_modules/lunar-javascript/lunar.js"></script>
     <script src="../chinese-calendar.js"></script>
     <script src="../calendar-core.js"></script>

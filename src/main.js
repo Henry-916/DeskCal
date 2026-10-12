@@ -23,6 +23,7 @@ const { DEFAULT_DATA } = DataModel;
 
 let mainWindow = null;
 let desktopPin = null;
+let dialogOpen = false;
 let tray = null;
 let appData = structuredClone(DEFAULT_DATA);
 let dataPath = '';
@@ -109,7 +110,10 @@ function ensureVisibleBounds(saved) {
     width,
     height
   };
+  // 没保存过位置时是 null，而 Number(null) 是 0，不能当成“在屏幕左上角”
   const isVisible =
+    typeof saved.x === 'number' &&
+    typeof saved.y === 'number' &&
     Number.isFinite(candidate.x) &&
     Number.isFinite(candidate.y) &&
     displays.some((display) => {
@@ -132,9 +136,23 @@ function ensureVisibleBounds(saved) {
   };
 }
 
+// 鼠标穿透只针对平时的日历表面；用户自己打开的弹窗必须能用鼠标操作
+function clickThroughActive() {
+  return Boolean(appData.settings.clickThrough) && !dialogOpen;
+}
+
+function applyLoginItem() {
+  const loginSettings = {
+    openAtLogin: Boolean(appData.settings.startOnBoot),
+    path: process.execPath
+  };
+  if (!app.isPackaged) loginSettings.args = [app.getAppPath()];
+  app.setLoginItemSettings(loginSettings);
+}
+
 function applyWindowSettings() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const { windowMode, clickThrough, theme } = appData.settings;
+  const { windowMode, theme } = appData.settings;
   const pinToDesktop = windowMode === 'desktop' && Boolean(desktopPin);
   if (!pinToDesktop) desktopPin?.disable();
   // 毛玻璃的深浅跟随这里，页面里的 prefers-color-scheme 也一样
@@ -149,7 +167,7 @@ function applyWindowSettings() {
   mainWindow.setSkipTaskbar(windowMode !== 'floating');
   mainWindow.setMinimizable(windowMode !== 'desktop');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
-  mainWindow.setIgnoreMouseEvents(Boolean(clickThrough), { forward: true });
+  mainWindow.setIgnoreMouseEvents(clickThroughActive(), { forward: true });
   if (pinToDesktop) desktopPin.enable();
 }
 
@@ -216,6 +234,7 @@ function createWindow() {
   mainWindow.on('closed', () => {
     desktopPin?.disable();
     desktopPin = null;
+    dialogOpen = false;
   });
 
   mainWindow.on('resize', scheduleSaveBounds);
@@ -225,12 +244,12 @@ function createWindow() {
 function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   applyWindowSettings();
-  if (desktopPin?.enabled && !appData.settings.clickThrough) {
+  if (desktopPin?.enabled && !clickThroughActive()) {
     desktopPin.peek();
     return;
   }
   mainWindow.show();
-  if (!appData.settings.clickThrough) mainWindow.focus();
+  if (!clickThroughActive()) mainWindow.focus();
 }
 
 function updateTrayMenu() {
@@ -427,14 +446,7 @@ function registerIpc() {
 
   ipcMain.handle('settings:update', (_event, patch) => {
     appData.settings = { ...appData.settings, ...(patch || {}) };
-    if (Object.hasOwn(patch || {}, 'startOnBoot')) {
-      const loginSettings = {
-        openAtLogin: Boolean(appData.settings.startOnBoot),
-        path: process.execPath
-      };
-      if (!app.isPackaged) loginSettings.args = [app.getAppPath()];
-      app.setLoginItemSettings(loginSettings);
-    }
+    if (Object.hasOwn(patch || {}, 'startOnBoot')) applyLoginItem();
     persistData();
     applyWindowSettings();
     updateTrayMenu();
@@ -450,6 +462,15 @@ function registerIpc() {
     Updater.install();
   });
   ipcMain.handle('update:open-releases', () => shell.openExternal(Updater.releasesUrl));
+
+  ipcMain.on('window:interactive', (_event, value) => {
+    if (dialogOpen === Boolean(value)) return;
+    dialogOpen = Boolean(value);
+    if (!mainWindow || mainWindow.isDestroyed() || !appData.settings.clickThrough) return;
+    // 穿透状态下打开的弹窗要调到前面并拿到焦点，否则看得见点不着；关掉后恢复穿透
+    if (dialogOpen) showWindow();
+    else applyWindowSettings();
+  });
 
   ipcMain.handle('window:action', (_event, action) => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
@@ -509,7 +530,11 @@ function registerIpc() {
     const incoming = mergeData(parsed);
     const imported = incoming.events.length;
     const skipped = parsed.events.length - imported;
+    const startOnBootChanged =
+      Boolean(appData.settings.startOnBoot) !== Boolean(incoming.settings.startOnBoot);
     appData = incoming;
+    // 备份里的开机启动设置要真正同步到系统，否则界面显示的和实际的不一致
+    if (startOnBootChanged) applyLoginItem();
     persistData();
     applyWindowSettings();
     updateTrayMenu();

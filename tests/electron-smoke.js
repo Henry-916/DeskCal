@@ -143,6 +143,14 @@ async function run() {
       opacityRange.dispatchEvent(new Event('input', { bubbles: true }));
       const clearestSheetAlpha = getComputedStyle(document.documentElement).getPropertyValue('--sheet-alpha').trim();
 
+      // 页面内确认框：点“确定”应返回 true
+      const askPromise = askConfirm('冒烟测试确认');
+      await wait(20);
+      const askOpened = document.querySelector('#askDialog').open;
+      document.querySelector('#askConfirmButton').click();
+      const askConfirmed = await askPromise;
+      const askClosed = !document.querySelector('#askDialog').open;
+
       const updateStatusText = document.querySelector('#updateStatus').textContent;
       const updateActionDisabled = document.querySelector('#updateActionButton').disabled;
       const dialogsExcludedFromDrag = [...document.querySelectorAll('dialog')].every(
@@ -177,6 +185,9 @@ async function run() {
         restoredMonthCells,
         quickPreview,
         clearestSheetAlpha,
+        askOpened,
+        askConfirmed,
+        askClosed,
         updateStatusText,
         updateActionDisabled,
         dialogsExcludedFromDrag,
@@ -216,6 +227,9 @@ async function run() {
   assert.match(result.quickPreview, /15:00/, 'quick input should preview the parsed time');
   assert.match(result.quickPreview, /30/, 'quick input should preview the reminder');
   assert.equal(result.clearestSheetAlpha, '0', '背景不透明度应能调到完全透明');
+  assert.equal(result.askOpened, true, '确认应使用页面内的对话框');
+  assert.equal(result.askConfirmed, true, '点确定后确认框应返回 true');
+  assert.equal(result.askClosed, true, '确认后对话框应关闭');
   assert.match(result.updateStatusText, /开发模式下不检查更新/, '未打包时设置页应说明不检查更新');
   assert.equal(result.updateActionDisabled, true, '未打包时检查更新按钮应不可用');
   assert.equal(
@@ -229,13 +243,114 @@ async function run() {
 
   console.log('Electron renderer smoke test passed:', JSON.stringify(result));
 
+  // 日程颜色：全新加载页面，没选过颜色的日程跟随日历，选过的用自己的颜色
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const colorResult = await window.webContents.executeJavaScript(`
+    (async () => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+      const create = async (title, color) => {
+        openEventDialog(null, state.selectedDate);
+        document.querySelector('#eventTitle').value = title;
+        document.querySelector('#eventAllDay').checked = true;
+        document.querySelector('#eventAllDay').dispatchEvent(new Event('change', { bubbles: true }));
+        if (color) {
+          document.querySelector('#eventColor').value = color;
+          document.querySelector('#eventColor').dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        document.querySelector('#eventForm').requestSubmit();
+        await wait(100);
+        return state.events.find((item) => item.title === title);
+      };
+      const plain = await create('跟随日历的日程', null);
+      const colored = await create('自定义颜色日程', '#ff0000');
+      return {
+        calendarColor: state.calendars[0].color,
+        plainColor: plain ? eventColor(plain) : null,
+        customColor: colored ? eventColor(colored) : null,
+        shownWithCustomColor: [...document.querySelectorAll('.day-chip, .agenda-item')].some(
+          (element) => element.style.getPropertyValue('--event-color') === '#ff0000'
+        )
+      };
+    })()
+  `);
+
+  assert.equal(colorResult.plainColor, colorResult.calendarColor, '没选过颜色的日程应跟随日历颜色');
+  assert.equal(colorResult.customColor, '#ff0000', '选过颜色的日程应使用自己的颜色');
+  assert.equal(colorResult.shownWithCustomColor, true, '界面上应显示日程自己的颜色');
+
+  console.log('Event color smoke test passed:', JSON.stringify(colorResult));
+
+  // 弹窗交互：全新加载页面，弹窗开着时快捷键不能清空表单，提示条要显示在弹窗之上
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const dialogResult = await window.webContents.executeJavaScript(`
+    (async () => {
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+      const pressCtrlN = () =>
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true }));
+
+      pressCtrlN();
+      await wait(20);
+      const shortcutOpensForm = document.querySelector('#eventDialog').open;
+
+      document.querySelector('#eventTitle').value = '填到一半的日程';
+      const pendingAsk = askConfirm('等待确认');
+      await wait(20);
+      pressCtrlN();
+      const titleKeptDuringAsk = document.querySelector('#eventTitle').value;
+      showToast('弹窗之上的提示');
+      const toastOnTopLayer = document.querySelector('#toastRegion').matches(':popover-open');
+      settleAsk(false);
+      const askAnswer = await pendingAsk;
+
+      // 连续提交两次只应新增一条日程
+      document.querySelector('#eventTitle').value = '连点两次保存';
+      document.querySelector('#eventAllDay').checked = true;
+      document.querySelector('#eventAllDay').dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('#eventForm').requestSubmit();
+      document.querySelector('#eventForm').requestSubmit();
+      await wait(120);
+      const doubleSubmitCount = state.events.filter((item) => item.title === '连点两次保存').length;
+
+      // 两条带“撤销”的提示条先后出现时，只保留最新的那个按钮
+      showToast('第一笔操作', 'DeskCal', { label: '撤销', handler: () => {} });
+      showToast('第二笔操作', 'DeskCal', { label: '撤销', handler: () => {} });
+      const undoButtons = document.querySelectorAll('#toastRegion .toast-action').length;
+
+      return {
+        shortcutOpensForm,
+        titleKeptDuringAsk,
+        toastOnTopLayer,
+        askAnswer,
+        doubleSubmitCount,
+        undoButtons
+      };
+    })()
+  `);
+
+  assert.equal(dialogResult.shortcutOpensForm, true, '没有弹窗时 Ctrl+N 应打开新建日程');
+  assert.equal(
+    dialogResult.titleKeptDuringAsk,
+    '填到一半的日程',
+    '弹窗开着时按 Ctrl+N 不应清空正在填写的表单'
+  );
+  assert.equal(dialogResult.toastOnTopLayer, true, '弹窗开着时提示条应放进顶层，显示在弹窗之上');
+  assert.equal(dialogResult.askAnswer, false, '取消确认框应返回 false');
+  assert.equal(dialogResult.doubleSubmitCount, 1, '连续提交两次只应新增一条日程');
+  assert.equal(dialogResult.undoButtons, 1, '只有最近一次操作的“撤销”按钮应保留');
+
+  console.log('Dialog interaction smoke test passed:', JSON.stringify(dialogResult));
+
   // F06 阶段验收：全新加载页面并在干净状态下验证撤销失效行为
   await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
 
   const f06Result = await window.webContents.executeJavaScript(`
     (async () => {
-      window.confirm = () => true;
-      window.prompt = () => '测试日历';
+      window.askConfirm = async () => true;
+      window.askText = async () => '测试日历';
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await wait(50);
 
@@ -318,8 +433,8 @@ async function run() {
 
   const f08Result = await window.webContents.executeJavaScript(`
     (async () => {
-      window.confirm = () => true;
-      window.prompt = () => '测试日历';
+      window.askConfirm = async () => true;
+      window.askText = async () => '测试日历';
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await wait(50);
 
@@ -440,8 +555,8 @@ async function run() {
 
   const f16Result = await window.webContents.executeJavaScript(`
     (async () => {
-      window.confirm = () => true;
-      window.prompt = () => '测试日历';
+      window.askConfirm = async () => true;
+      window.askText = async () => '测试日历';
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await wait(50);
 
@@ -527,11 +642,11 @@ async function run() {
   const f18Result = await window.webContents.executeJavaScript(`
     (async () => {
       let confirmCallCount = 0;
-      window.confirm = () => {
+      window.askConfirm = async () => {
         confirmCallCount += 1;
         return true;
       };
-      window.prompt = () => '测试日历';
+      window.askText = async () => '测试日历';
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await wait(50);
 
@@ -606,8 +721,8 @@ async function run() {
 
   const r5Result = await window.webContents.executeJavaScript(`
     (async () => {
-      window.confirm = () => true;
-      window.prompt = () => '测试日历';
+      window.askConfirm = async () => true;
+      window.askText = async () => '测试日历';
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await wait(50);
 

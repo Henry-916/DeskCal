@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('deskcal', {
   saveCalendars: (calendars) => ipcRenderer.invoke('calendars:save', calendars),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   windowAction: (action) => ipcRenderer.invoke('window:action', action),
+  setInteractive: (value) => ipcRenderer.send('window:interactive', Boolean(value)),
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),

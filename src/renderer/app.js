@@ -42,6 +42,7 @@ if (!window.deskcal) {
       return structuredClone(previewStore.settings);
     },
     windowAction: async () => true,
+    setInteractive: () => {},
     exportData: async () => ({ canceled: true }),
     importData: async () => ({ canceled: true }),
     checkForUpdates: async () => {},
@@ -76,6 +77,10 @@ const state = {
   quickEditingId: null,
   quickEditingDate: null,
   scopeResolver: null,
+  askResolver: null,
+  submittingEvent: false,
+  calendarSaveVersion: 0,
+  eventColorCustom: false,
   undoSnapshot: null,
   acrylicSupported: false,
   update: { state: 'unsupported' }
@@ -156,8 +161,17 @@ function calendarById(id) {
   return state.calendars.find((calendar) => calendar.id === id);
 }
 
+// 日程默认跟随所属日历的颜色；在表单里选过颜色的日程用自己的颜色
 function eventColor(event) {
-  return calendarById(event.calendarId || 'personal')?.color || event.color || '#6750e8';
+  if (event.customColor && event.color) return event.color;
+  return calendarById(event.calendarId || 'personal')?.color || '#6750e8';
+}
+
+function setEventColor(color) {
+  state.eventColorCustom = Boolean(color);
+  $('#eventColor').value = color || calendarById($('#eventCalendar').value)?.color || '#6750e8';
+  $('#eventColorText').textContent = color ? color.toUpperCase() : '跟随日历';
+  $('#eventColorReset').classList.toggle('hidden', !color);
 }
 
 function visibleEvents() {
@@ -309,8 +323,16 @@ function applyTheme() {
   const root = document.documentElement;
   root.dataset.theme = state.settings.theme || 'system';
   root.dataset.windowMode = state.settings.windowMode || 'desktop';
+  root.dataset.clickThrough = String(Boolean(state.settings.clickThrough));
   root.dataset.material = windowMaterial();
   applySheetOpacity(backgroundOpacity());
+}
+
+// 按保存的设置切到月历或周历（启动和导入备份后都要做）
+function applySavedView() {
+  const selected = parseDate(state.selectedDate);
+  state.viewMode = state.settings.calendarView === 'week' ? 'week' : 'month';
+  state.viewDate = state.viewMode === 'week' ? selected : startOfMonth(selected);
 }
 
 function applyAgendaLayout() {
@@ -478,6 +500,39 @@ function renderDayCell(date, referenceMonth, isWeekView) {
   `;
 }
 
+// 用页面内的对话框代替系统的 confirm / prompt：系统对话框关闭后页面会丢失输入焦点，
+// 之后下拉框弹不出来、输入框打不了字；prompt 在 Electron 里更是直接不可用。
+function ask({ message, input = false, placeholder = '', confirmLabel = '确定', danger = false }) {
+  $('#askMessage').textContent = message;
+  $('#askInputField').classList.toggle('hidden', !input);
+  $('#askInput').value = '';
+  $('#askInput').placeholder = placeholder;
+  $('#askConfirmButton').textContent = confirmLabel;
+  $('#askConfirmButton').className = danger ? 'danger-button' : 'primary-button';
+  $('#askDialog').showModal();
+  (input ? $('#askInput') : $('#askConfirmButton')).focus();
+  return new Promise((resolve) => {
+    state.askResolver = { resolve, input };
+  });
+}
+
+function settleAsk(confirmed) {
+  const pending = state.askResolver;
+  if (!pending) return;
+  state.askResolver = null;
+  if ($('#askDialog').open) $('#askDialog').close();
+  if (pending.input) pending.resolve(confirmed ? $('#askInput').value.trim() : null);
+  else pending.resolve(confirmed);
+}
+
+function askConfirm(message, options = {}) {
+  return ask({ message, ...options });
+}
+
+function askText(message, placeholder = '') {
+  return ask({ message, input: true, placeholder });
+}
+
 function chooseRecurrenceScope(title, message) {
   $('#scopeDialogTitle').textContent = title;
   $('#scopeDialogMessage').textContent = message;
@@ -558,7 +613,7 @@ async function moveOccurrence(eventId, occurrenceDate, targetDate, targetStartTi
   );
   if (
     conflicts.length &&
-    !confirm(`该时间与“${conflicts[0].title}”冲突，仍然继续移动吗？`)
+    !(await askConfirm(`该时间与“${conflicts[0].title}”冲突，仍然继续移动吗？`))
   ) {
     return;
   }
@@ -598,7 +653,7 @@ async function resizeOccurrence(eventId, occurrenceDate, deltaMinutes) {
   );
   if (
     conflicts.length &&
-    !confirm(`延长后与“${conflicts[0].title}”时间冲突，仍然继续吗？`)
+    !(await askConfirm(`延长后与“${conflicts[0].title}”时间冲突，仍然继续吗？`))
   ) {
     return;
   }
@@ -1064,7 +1119,7 @@ function bindCalendarManager() {
   $all('[data-calendar-delete]').forEach((button) => {
     button.addEventListener('click', async () => {
       const calendar = calendarById(button.dataset.calendarDelete);
-      if (!calendar || !confirm(`删除“${calendar.name}”日历吗？其中的日程会移动到个人日历。`)) {
+      if (!calendar || !(await askConfirm(`删除“${calendar.name}”日历吗？其中的日程会移动到个人日历。`, { confirmLabel: '删除', danger: true }))) {
         return;
       }
       state.events.forEach((event) => {
@@ -1079,7 +1134,13 @@ function bindCalendarManager() {
 }
 
 async function saveCalendars(message = '') {
-  state.calendars = await window.deskcal.saveCalendars(state.calendars);
+  // 主进程返回的是规范化后的整份日历。期间如果又发起了更新的保存，以更新的那次为准，
+  // 否则较早的响应会把还没保存完的改动盖回去
+  state.calendarSaveVersion += 1;
+  const version = state.calendarSaveVersion;
+  const saved = await window.deskcal.saveCalendars(state.calendars);
+  if (version !== state.calendarSaveVersion) return;
+  state.calendars = saved;
   render();
   if (message) showToast(message);
 }
@@ -1217,8 +1278,7 @@ function resetEventForm(date = state.selectedDate) {
   $('#eventEditScopeField').classList.add('hidden');
   $('#eventCalendar').value = state.calendars[0]?.id || 'personal';
   $('#eventCategory').value = 'work';
-  $('#eventColor').value = '#6750e8';
-  $('#eventColorText').textContent = '#6750E8';
+  setEventColor(null);
   $('#eventLocation').value = '';
   $('#deleteEventButton').classList.add('hidden');
   $('#skipOccurrenceButton').classList.add('hidden');
@@ -1252,8 +1312,7 @@ function openEventDialog(eventId = null, date = state.selectedDate) {
     $('#eventRepeatCount').value = recurrence.count ? String(recurrence.count) : '';
     $('#eventCalendar').value = event.calendarId || 'personal';
     $('#eventCategory').value = event.category || 'work';
-    $('#eventColor').value = event.color || '#6750e8';
-    $('#eventColorText').textContent = (event.color || '#6750e8').toUpperCase();
+    setEventColor(event.customColor ? event.color : null);
     $('#eventLocation').value = event.location || '';
     $('#eventNotes').value = event.notes || '';
     $('#deleteEventButton').classList.remove('hidden');
@@ -1328,6 +1387,17 @@ async function saveEvents(message = '日程已保存', action = null) {
 
 async function submitEventForm(event) {
   event.preventDefault();
+  // 保存还没返回时再次提交，会把同一条日程新增多次
+  if (state.submittingEvent) return;
+  state.submittingEvent = true;
+  try {
+    await saveEventForm();
+  } finally {
+    state.submittingEvent = false;
+  }
+}
+
+async function saveEventForm() {
   const existing = state.events.find((item) => item.id === $('#eventId').value);
   const frequency = $('#eventRepeat').value;
   const until = $('#eventRepeatUntil').value || null;
@@ -1355,6 +1425,7 @@ async function submitEventForm(event) {
     calendarId: $('#eventCalendar').value || 'personal',
     category: $('#eventCategory').value,
     color: $('#eventColor').value,
+    customColor: state.eventColorCustom,
     location: $('#eventLocation').value.trim(),
     notes: $('#eventNotes').value.trim(),
     completed: existing?.completed || false,
@@ -1381,7 +1452,7 @@ async function submitEventForm(event) {
   if (conflicts.length) {
     $('#eventConflictWarning').textContent = `与“${conflicts[0].title}”时间冲突`;
     $('#eventConflictWarning').classList.remove('hidden');
-    if (!confirm(`该时间与“${conflicts[0].title}”冲突，仍然保存吗？`)) return;
+    if (!(await askConfirm(`该时间与“${conflicts[0].title}”冲突，仍然保存吗？`))) return;
   }
 
   if (existing) {
@@ -1426,7 +1497,7 @@ async function deleteEditingEvent() {
   const recurrence = normalizeRecurrence(event);
   const scope =
     recurrence.frequency === 'none' ? 'series' : $('#eventEditScope').value || 'occurrence';
-  if (!confirm(`删除“${event.title}”的${scope === 'occurrence' ? '本次安排' : scope === 'future' ? '本次及后续安排' : '整个系列'}吗？`)) {
+  if (!(await askConfirm(`删除“${event.title}”的${scope === 'occurrence' ? '本次安排' : scope === 'future' ? '本次及后续安排' : '整个系列'}吗？`, { confirmLabel: '删除', danger: true }))) {
     return;
   }
   await deleteOccurrence(event, state.editingOccurrenceDate || event.date, scope);
@@ -1447,7 +1518,7 @@ async function skipEditingOccurrence() {
   const event = state.events.find((item) => item.id === $('#eventId').value);
   const occurrenceDate = state.editingOccurrenceDate;
   if (!event || !occurrenceDate || normalizeRecurrence(event).frequency === 'none') return;
-  if (!confirm(`仅跳过“${event.title}”在${occurrenceDate}的这一次吗？`)) return;
+  if (!(await askConfirm(`仅跳过“${event.title}”在${occurrenceDate}的这一次吗？`))) return;
   event.exceptions = [...new Set([...(event.exceptions || []), occurrenceDate])].sort();
   event.updatedAt = new Date().toISOString();
   await saveEvents('已跳过本次重复日程');
@@ -1514,7 +1585,7 @@ async function quickEditAction(action) {
     );
     if (
       conflicts.length &&
-      !confirm(`调整后与“${conflicts[0].title}”时间冲突，仍然继续吗？`)
+      !(await askConfirm(`调整后与“${conflicts[0].title}”时间冲突，仍然继续吗？`))
     ) {
       return;
     }
@@ -1534,7 +1605,7 @@ async function quickDelete() {
   if (normalizeRecurrence(event).frequency !== 'none') {
     scope = await chooseRecurrenceScope('删除重复日程', `“${event.title}”要删除哪一部分？`);
     if (scope === 'cancel') return;
-  } else if (!confirm(`将“${event.title}”移入回收站吗？`)) {
+  } else if (!(await askConfirm(`将“${event.title}”移入回收站吗？`, { confirmLabel: '移入回收站', danger: true }))) {
     return;
   }
   $('#quickEditDialog').close();
@@ -1558,7 +1629,7 @@ function renderRecycleBin() {
     .map(
       (event) => `
         <article class="recycle-item">
-          <span class="recycle-color" style="background:${escapeHtml(event.color || '#6750e8')}"></span>
+          <span class="recycle-color" style="background:${escapeHtml(eventColor(event))}"></span>
           <div>
             <strong>${escapeHtml(event.title)}</strong>
             <p>${escapeHtml(event.date)} · 删除于${escapeHtml(
@@ -1590,7 +1661,7 @@ function renderRecycleBin() {
   $all('[data-purge-id]').forEach((button) => {
     button.addEventListener('click', async () => {
       const event = state.events.find((item) => item.id === button.dataset.purgeId);
-      if (!event || !confirm(`永久删除“${event.title}”吗？此操作无法撤销。`)) return;
+      if (!event || !(await askConfirm(`永久删除“${event.title}”吗？此操作无法撤销。`, { confirmLabel: '永久删除', danger: true }))) return;
       state.events = state.events.filter((item) => item.id !== event.id);
       await saveEvents('日程已永久删除');
       renderRecycleBin();
@@ -1660,14 +1731,26 @@ function showToast(message, title = 'DeskCal', action = null) {
         : ''
     }
   `;
+  const region = $('#toastRegion');
+  const dismiss = () => {
+    toast.remove();
+    if (!region.children.length && region.matches(':popover-open')) region.hidePopover();
+  };
   if (action) {
     toast.querySelector('.toast-action').addEventListener('click', async () => {
-      toast.remove();
+      dismiss();
       await action.handler();
     });
   }
-  $('#toastRegion').appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+  // 撤销只对最近一次操作有效，旧提示条上的按钮不能留着，否则点它撤销的是另一笔操作
+  if (action) {
+    region.querySelectorAll('.toast-action').forEach((button) => button.closest('.toast').remove());
+  }
+  region.appendChild(toast);
+  // 顶层里后打开的在上面：有弹窗开着时重新打开一次，把提示条挪到弹窗之上
+  if (region.matches(':popover-open') && $('dialog[open]')) region.hidePopover();
+  if (!region.matches(':popover-open')) region.showPopover();
+  setTimeout(dismiss, 3500);
 }
 
 function openSettings() {
@@ -1744,13 +1827,24 @@ function bindEvents() {
     input.addEventListener('change', previewEventConflict);
   });
   $('#eventRepeat').addEventListener('change', toggleRecurrenceFields);
-  $('#eventColor').addEventListener('input', (event) => {
-    $('#eventColorText').textContent = event.target.value.toUpperCase();
+  $('#eventColor').addEventListener('input', (event) => setEventColor(event.target.value));
+  $('#eventColorReset').addEventListener('click', () => setEventColor(null));
+  $('#eventCalendar').addEventListener('change', () => {
+    if (!state.eventColorCustom) setEventColor(null);
+  });
+  $('#askForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    settleAsk(true);
+  });
+  $('#askCancelButton').addEventListener('click', () => settleAsk(false));
+  // close 事件是延后触发的：如果上一个确认框刚关、下一个已经打开，这次事件不该把新的关掉
+  $('#askDialog').addEventListener('close', () => {
+    if (!$('#askDialog').open) settleAsk(false);
   });
   $('#deleteEventButton').addEventListener('click', deleteEditingEvent);
   $('#skipOccurrenceButton').addEventListener('click', skipEditingOccurrence);
   $('#addCalendarButton').addEventListener('click', async () => {
-    const name = prompt('请输入新日历名称，例如“工作”或“家庭”');
+    const name = await askText('新日历叫什么名字？', '例如：工作、家庭');
     if (!name?.trim()) return;
     const palette = ['#e05d6f', '#168e83', '#df8a32', '#3c7edb', '#9b59b6', '#6750e8'];
     state.calendars.push({
@@ -1854,7 +1948,7 @@ function bindEvents() {
     if (!result.canceled) showToast('备份文件已导出');
   });
   $('#importButton').addEventListener('click', async () => {
-    if (!confirm('导入备份将替换当前数据，是否继续？')) return;
+    if (!(await askConfirm('导入备份将替换当前数据，是否继续？'))) return;
     try {
       const result = await window.deskcal.importData();
       if (!result.canceled) {
@@ -1862,6 +1956,7 @@ function bindEvents() {
         state.calendars = result.state.calendars || state.calendars;
         state.settings = result.state.settings;
         state.undoSnapshot = null;
+        applySavedView();
         render();
         const imported = result.summary?.imported ?? state.events.length;
         const skipped = result.summary?.skipped ?? 0;
@@ -1877,15 +1972,17 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.ctrlKey && event.key.toLowerCase() === 'n') {
+    // 有弹窗开着时不响应全局快捷键，否则 Ctrl+N 会清空正在填写或等待确认的表单
+    const shortcut = event.ctrlKey && !$('dialog[open]') ? event.key.toLowerCase() : '';
+    if (shortcut === 'n') {
       event.preventDefault();
       openEventDialog();
     }
-    if (event.ctrlKey && event.key.toLowerCase() === 'k') {
+    if (shortcut === 'k') {
       event.preventDefault();
       openQuickAdd();
     }
-    if (event.ctrlKey && event.key.toLowerCase() === 'f') {
+    if (shortcut === 'f') {
       event.preventDefault();
       const focusSearch = () => {
         $('#searchInput').focus();
@@ -1895,6 +1992,12 @@ function bindEvents() {
       else focusSearch();
     }
     if (event.key === 'Escape') {
+      // 确认框开着时只关它自己，不连带关掉下面的表单
+      if (state.askResolver) {
+        event.preventDefault();
+        settleAsk(false);
+        return;
+      }
       if (state.scopeResolver) {
         const resolve = state.scopeResolver;
         state.scopeResolver = null;
@@ -1904,8 +2007,13 @@ function bindEvents() {
     }
   });
 
-  window.deskcal.onCreateRequest(() => openEventDialog());
-  window.deskcal.onOpenSettings(openSettings);
+  // 托盘菜单触发时如果已有弹窗开着（比如正在填表单），就不要再打开新的把它冲掉
+  window.deskcal.onCreateRequest(() => {
+    if (!$('dialog[open]')) openEventDialog();
+  });
+  window.deskcal.onOpenSettings(() => {
+    if (!$('dialog[open]')) openSettings();
+  });
   window.deskcal.onSettingsChanged((settings) => {
     state.settings = settings;
     render();
@@ -1928,13 +2036,23 @@ function bindEvents() {
   });
   window.deskcal.onReminderOpen(({ eventId, occurrenceDate }) => {
     const event = state.events.find((item) => item.id === eventId);
-    if (event) {
-      state.selectedDate = occurrenceDate;
-      state.viewDate = startOfMonth(parseDate(occurrenceDate));
-      render();
-      openEventDialog(eventId, occurrenceDate);
+    if (!event) return;
+    // 已有弹窗开着（比如正在填另一条日程）时不去覆盖它，只提示一下
+    if ($('dialog[open]')) {
+      showToast('关闭当前窗口后，可以在日历里找到这条日程', event.title);
+      return;
     }
+    state.selectedDate = occurrenceDate;
+    state.viewDate = startOfMonth(parseDate(occurrenceDate));
+    render();
+    openEventDialog(eventId, occurrenceDate);
   });
+
+  // 告诉主进程有没有弹窗开着：鼠标穿透开启时，弹窗期间要暂时恢复鼠标操作
+  new MutationObserver(() => window.deskcal.setInteractive(Boolean($('dialog[open]')))).observe(
+    document.body,
+    { subtree: true, attributes: true, attributeFilter: ['open'] }
+  );
 }
 
 async function init() {
@@ -1948,10 +2066,7 @@ async function init() {
     state.settings = initial.settings || {};
     state.acrylicSupported = Boolean(initial.acrylicSupported);
     state.update = initial.update || state.update;
-    if (state.settings.calendarView === 'week') {
-      state.viewMode = 'week';
-      state.viewDate = parseDate(state.selectedDate);
-    }
+    applySavedView();
     render();
   } catch (error) {
     showToast(error.message || '无法加载本地数据', '启动失败');
