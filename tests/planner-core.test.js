@@ -216,3 +216,44 @@ test('F11 applyOccurrenceDeletion 纯函数处理四种情况并保持入参不�
   // 保证入参没有被修改
   assert.deepEqual(recurringEvent, snapshot);
 });
+
+test('移动整个重复系列时，已跳过的日期跟着平移', () => {
+  const event = {
+    id: 'daily',
+    title: '晨会',
+    date: '2026-10-12',
+    recurrence: { frequency: 'daily', interval: 1, until: null, count: null },
+    exceptions: ['2026-10-13']
+  };
+  const result = applyOccurrenceChange(event, '2026-10-12', { date: '2026-10-13' }, 'series', () => 'x');
+  assert.equal(result.original.date, '2026-10-13');
+  // 原来跳过的是第 2 次，系列延后一天后仍应跳过第 2 次
+  assert.deepEqual(result.original.exceptions, ['2026-10-14']);
+  assert.deepEqual(event.exceptions, ['2026-10-13'], '入参不应被修改');
+});
+
+test('移动本次及以后时，后半段已跳过的日期跟着平移，前半段不动', () => {
+  const event = {
+    id: 'daily',
+    title: '晨会',
+    date: '2026-10-12',
+    recurrence: { frequency: 'daily', interval: 1, until: null, count: null },
+    exceptions: ['2026-10-13', '2026-10-16']
+  };
+  const result = applyOccurrenceChange(event, '2026-10-15', { date: '2026-10-17' }, 'future', () => 'tail');
+  assert.deepEqual(result.original.exceptions, ['2026-10-13']);
+  assert.equal(result.detached.date, '2026-10-17');
+  assert.deepEqual(result.detached.exceptions, ['2026-10-18']);
+});
+
+test('只改时间不改日期时，已跳过的日期保持不变', () => {
+  const event = {
+    id: 'daily',
+    title: '晨会',
+    date: '2026-10-12',
+    recurrence: { frequency: 'daily', interval: 1, until: null, count: null },
+    exceptions: ['2026-10-13']
+  };
+  const result = applyOccurrenceChange(event, '2026-10-12', { startTime: '10:00' }, 'series', () => 'x');
+  assert.deepEqual(result.original.exceptions, ['2026-10-13']);
+});

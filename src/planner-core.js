@@ -7,7 +7,14 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.DeskCalPlannerCore = api;
 })(typeof window !== 'undefined' ? window : globalThis, function createPlannerCore(CalendarCore) {
-  const { dateKey, parseDate, addDays, occursOn, normalizeRecurrence } = CalendarCore;
+  const { dateKey, parseDate, addDays, daysBetween, occursOn, normalizeRecurrence } = CalendarCore;
+
+  // 系列的起始日期变了，已跳过的日期要跟着平移，否则被跳过的会变成另外一天
+  function shiftExceptions(exceptions, fromDate, toDate) {
+    const delta = toDate ? daysBetween(parseDate(fromDate), parseDate(toDate)) : 0;
+    if (!delta) return exceptions;
+    return exceptions.map((value) => dateKey(addDays(parseDate(value), delta)));
+  }
 
   function minutesFromTime(value) {
     const match = /^(\d{2}):(\d{2})$/.exec(String(value));
@@ -77,6 +84,11 @@
         original: {
           ...event,
           ...changes,
+          exceptions: shiftExceptions(
+            changes.exceptions || event.exceptions || [],
+            event.date,
+            changes.date
+          ),
           updatedAt: timestamp
         },
         detached: null
@@ -124,7 +136,11 @@
         date: changes.date || occurrenceDate,
         recurrence: { ...nextRecurrence, count: nextCount },
         repeat: nextRecurrence.frequency,
-        exceptions: (event.exceptions || []).filter((value) => value >= occurrenceDate),
+        exceptions: shiftExceptions(
+          (event.exceptions || []).filter((value) => value >= occurrenceDate),
+          occurrenceDate,
+          changes.date
+        ),
         createdAt: timestamp,
         updatedAt: timestamp
       };
