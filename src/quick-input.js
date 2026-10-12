@@ -177,215 +177,89 @@
     return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
   }
 
-  function parseChineseTimePoint(text, startIndex, defaultPeriod = null, isEnd = false) {
-    const sub = text.slice(startIndex);
-    const re =
-      /^(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?(\d{1,2}|[零一二两三四五六七八九十]+)点(?:(半|一刻|三刻)|(\d{1,2}|[零一二两三四五六七八九十]+)(分?))?/;
-    const match = re.exec(sub);
-    if (!match) return null;
+  const PERIOD = '(凌晨|早上|上午|中午|下午|晚上)';
+  const CHINESE_NUMBER = '[零一二两三四五六七八九十]+';
+  const CHINESE_TENS = '[一二三四五]?十[一二三四五六七八九]?';
+  // 中文数字的分钟只认一到五十九；不带「分」时只认「零X」和十及以上的写法，
+  // 这样「3点一起吃饭」「3点十五一起吃饭」里的「一」会留在标题里。
+  const MINUTE = `(?:(半|一刻|三刻)|(\\d{1,2})分?|(零?[一二两三四五六七八九]|${CHINESE_TENS})分|(零[一二三四五六七八九]|${CHINESE_TENS}))?`;
+  // 中文数字写的小时必须带时段词，否则「一点小事」「两点建议」会被当成时间。
+  const START_POINT = `(?:${PERIOD}\\s*(\\d{1,2}|${CHINESE_NUMBER})|(\\d{1,2}))点${MINUTE}`;
+  // 时间段的结束时间可以省略时段词，沿用开始时间的。
+  const END_POINT = `${PERIOD}?\\s*(\\d{1,2}|${CHINESE_NUMBER})点${MINUTE}`;
+  const CLOCK = `${PERIOD}?\\s*([01]?\\d|2[0-3]):([0-5]\\d)(?!\\d)`;
 
-    const period = match[1] || defaultPeriod || null;
-    const rawHour = parseNumberToken(match[2]);
+  // 时间段的两端各自可以是「点」写法或冒号写法。
+  const RANGE_PATTERN = new RegExp(
+    `(?:${START_POINT}|(?<!\\d)${CLOCK})\\s*(?:到|至|-|~|—)\\s*(?:${END_POINT}|${CLOCK})`
+  );
+  const CLOCK_PATTERN = new RegExp(`(?<!\\d)${CLOCK}`);
+  const POINT_PATTERN = new RegExp(START_POINT);
+
+  function minuteFrom(special, digits, chineseWithUnit, chineseBare) {
+    if (special) return { 半: 30, 一刻: 15, 三刻: 45 }[special];
+    if (digits) return Math.min(59, Number(digits));
+    const chinese = chineseWithUnit || chineseBare;
+    return chinese ? parseNumberToken(chinese.replace(/^零/, '')) : 0;
+  }
+
+  function pointTime(period, hour, minuteGroups) {
+    const rawHour = parseNumberToken(hour);
     if (rawHour === null) return null;
+    return { period, rawHour, minute: minuteFrom(...minuteGroups) };
+  }
 
-    const isChineseHour = !/^\d+$/.test(match[2]);
-    if (isChineseHour && !period) {
-      // R3: Chinese hour without period is not treated as a time
-      return null;
+  function clockTime(period, hour, minute) {
+    return { period, rawHour: Number(hour), minute: Number(minute) };
+  }
+
+  function rangeEndTime(startTotal, endHour, endMinute) {
+    let endTotal = endHour * 60 + endMinute;
+    if (endTotal <= startTotal) {
+      const retryTotal = endTotal + 12 * 60;
+      endTotal =
+        endHour + 12 < 24 && retryTotal > startTotal
+          ? retryTotal
+          : Math.min(23 * 60 + 59, startTotal + 60);
     }
+    return `${pad(Math.floor(endTotal / 60))}:${pad(endTotal % 60)}`;
+  }
 
-    let minute = 0;
-    let matchedLength = match[0].length;
-
-    if (match[3]) {
-      if (match[3] === '半') minute = 30;
-      else if (match[3] === '一刻') minute = 15;
-      else if (match[3] === '三刻') minute = 45;
-    } else if (match[4]) {
-      const isArabicMin = /^\d+$/.test(match[4]);
-      const hasFen = match[5] === '分';
-      if (isArabicMin) {
-        minute = Math.min(59, Math.max(0, Number(match[4])));
-      } else {
-        const minStr = match[4];
-        if (hasFen) {
-          if (minStr.startsWith('零')) {
-            minute = parseNumberToken(minStr.slice(1)) || 0;
-          } else {
-            minute = parseNumberToken(minStr) || 0;
-          }
-        } else {
-          if (minStr.startsWith('零')) {
-            minute = parseNumberToken(minStr.slice(1)) || 0;
-          } else {
-            const val = parseNumberToken(minStr);
-            if (val !== null && val >= 10) {
-              minute = val;
-            } else {
-              // R2: single Chinese digit without 分 is not a minute
-              minute = 0;
-              const dianIdx = match[0].indexOf('点');
-              matchedLength = dianIdx + 1;
-            }
-          }
-        }
-      }
-    }
-
-    let hour;
-    let rolloverDay = 0;
-    if (period === '晚上' && rawHour === 12) {
-      hour = 0;
-      rolloverDay = 1;
-    } else if (period) {
-      hour = normalizeHour(rawHour, period);
-    } else {
-      hour = Math.max(0, Math.min(23, rawHour));
-    }
-
+  function buildTime(match, start, end = null) {
+    const hour = normalizeHour(start.rawHour, start.period);
     return {
-      hour,
-      minute,
-      period,
-      rawHour,
-      rolloverDay,
-      matchedLength,
-      span: [startIndex, startIndex + matchedLength]
+      startTime: `${pad(hour)}:${pad(start.minute)}`,
+      endTime: end
+        ? rangeEndTime(
+            hour * 60 + start.minute,
+            normalizeHour(end.rawHour, end.period || start.period),
+            end.minute
+          )
+        : endTimeFor(hour, start.minute),
+      rolloverDay: start.period === '晚上' && start.rawHour === 12 ? 1 : 0,
+      span: [match.index, match.index + match[0].length]
     };
   }
 
   function parseTimeToken(text) {
-    // 1. Digital range: e.g. 15:00-17:00, 下午3:00-5:00, 上午10:00到下午2:00, 11:00-01:00
-    const digitalRangeRegex =
-      /(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?([01]?\d|2[0-3]):([0-5]\d)\s*(?:到|至|-|~|—)\s*(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?([01]?\d|2[0-3]):([0-5]\d)/;
-    const digitalRangeMatch = digitalRangeRegex.exec(text);
-    if (digitalRangeMatch) {
-      const period1 = digitalRangeMatch[1] || null;
-      const rawStartHour = Number(digitalRangeMatch[2]);
-      const startMinute = Number(digitalRangeMatch[3]);
-      const period2 = digitalRangeMatch[4] || period1;
-      const rawEndHour = Number(digitalRangeMatch[5]);
-      let endMinute = Number(digitalRangeMatch[6]);
-
-      let rolloverDay = 0;
-      let startHour;
-      if (period1 === '晚上' && rawStartHour === 12) {
-        startHour = 0;
-        rolloverDay = 1;
-      } else if (period1) {
-        startHour = normalizeHour(rawStartHour, period1);
-      } else {
-        startHour = rawStartHour;
-      }
-
-      let endHour;
-      if (period2) {
-        endHour = normalizeHour(rawEndHour, period2);
-      } else {
-        endHour = rawEndHour;
-      }
-
-      const startTotal = startHour * 60 + startMinute;
-      let endTotal = endHour * 60 + endMinute;
-
-      if (endTotal <= startTotal) {
-        const retryHour = endHour + 12;
-        const retryTotal = retryHour * 60 + endMinute;
-        if (retryHour < 24 && retryTotal > startTotal) {
-          endHour = retryHour;
-          endTotal = retryTotal;
-        } else {
-          endTotal = Math.min(23 * 60 + 59, startTotal + 60);
-          endHour = Math.floor(endTotal / 60);
-          endMinute = endTotal % 60;
-        }
-      }
-
-      return {
-        startTime: `${pad(startHour)}:${pad(startMinute)}`,
-        endTime: `${pad(endHour)}:${pad(endMinute)}`,
-        rolloverDay,
-        span: [digitalRangeMatch.index, digitalRangeMatch.index + digitalRangeMatch[0].length]
-      };
+    const range = RANGE_PATTERN.exec(text);
+    if (range) {
+      const start = range[9]
+        ? clockTime(range[8], range[9], range[10])
+        : pointTime(range[1], range[2] || range[3], range.slice(4, 8));
+      const end = range[18]
+        ? clockTime(range[17], range[18], range[19])
+        : pointTime(range[11], range[12], range.slice(13, 17));
+      if (start && end) return buildTime(range, start, end);
     }
 
-    // 2. Chinese time: ranges or single
-    for (let i = 0; i < text.length; i += 1) {
-      const point1 = parseChineseTimePoint(text, i, null, false);
-      if (!point1) continue;
+    // 单个时间里冒号写法没有歧义，优先于「N点」，避免标题里的「3点建议」抢走时间。
+    const clock = CLOCK_PATTERN.exec(text);
+    if (clock) return buildTime(clock, clockTime(clock[1], clock[2], clock[3]));
 
-      const after1 = text.slice(point1.span[1]);
-      const connMatch = /^\s*(到|至|-|~|—)\s*/.exec(after1);
-      if (connMatch) {
-        const idx2 = point1.span[1] + connMatch[0].length;
-        const point2 = parseChineseTimePoint(text, idx2, point1.period, true);
-        if (point2) {
-          let endHour = point2.hour;
-          let endMinute = point2.minute;
-          const startTotal = point1.hour * 60 + point1.minute;
-          let endTotal = endHour * 60 + endMinute;
-
-          if (endTotal <= startTotal) {
-            const retryHour = endHour + 12;
-            const retryTotal = retryHour * 60 + endMinute;
-            if (retryHour < 24 && retryTotal > startTotal) {
-              endHour = retryHour;
-              endTotal = retryTotal;
-            } else {
-              endTotal = Math.min(23 * 60 + 59, startTotal + 60);
-              endHour = Math.floor(endTotal / 60);
-              endMinute = endTotal % 60;
-            }
-          }
-
-          return {
-            startTime: `${pad(point1.hour)}:${pad(point1.minute)}`,
-            endTime: `${pad(endHour)}:${pad(endMinute)}`,
-            rolloverDay: point1.rolloverDay,
-            span: [point1.span[0], point2.span[1]]
-          };
-        }
-      }
-
-      return {
-        startTime: `${pad(point1.hour)}:${pad(point1.minute)}`,
-        endTime: endTimeFor(point1.hour, point1.minute),
-        rolloverDay: point1.rolloverDay,
-        span: point1.span
-      };
-    }
-
-    // 3. Digital single: e.g. 下午3:30, 晚上12:30, 15:30
-    const digitalSingleRegex =
-      /(?:(凌晨|早上|上午|中午|下午|晚上)\s*)?([01]?\d|2[0-3]):([0-5]\d)/g;
-    let dsMatch;
-    while ((dsMatch = digitalSingleRegex.exec(text)) !== null) {
-      if (!dsMatch[1] && dsMatch.index > 0 && /\d/.test(text[dsMatch.index - 1])) {
-        continue;
-      }
-      const period = dsMatch[1] || null;
-      const rawHour = Number(dsMatch[2]);
-      const minute = Number(dsMatch[3]);
-      let hour;
-      let rolloverDay = 0;
-      if (period === '晚上' && rawHour === 12) {
-        hour = 0;
-        rolloverDay = 1;
-      } else if (period) {
-        hour = normalizeHour(rawHour, period);
-      } else {
-        hour = rawHour;
-      }
-
-      return {
-        startTime: `${pad(hour)}:${pad(minute)}`,
-        endTime: endTimeFor(hour, minute),
-        rolloverDay,
-        span: [dsMatch.index, dsMatch.index + dsMatch[0].length]
-      };
-    }
-
-    return null;
+    const point = POINT_PATTERN.exec(text);
+    const start = point && pointTime(point[1], point[2] || point[3], point.slice(4, 8));
+    return start ? buildTime(point, start) : null;
   }
 
   function parseReminder(text) {

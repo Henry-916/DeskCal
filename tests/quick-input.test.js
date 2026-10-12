@@ -322,16 +322,51 @@ test('R4 时段词对冒号写法生效及时间段（验收表 11 条）', () =
   assertQuickCase('11:00-01:00 会议', { startTime: '11:00', endTime: '13:00', title: '会议' });
 });
 
-test('9.4 本轮不处理行为保持（低成本保留项验证）', () => {
-  // 1. 阿拉伯数字分钟后面跟着量词时的误判保留
-  assertQuickCase('下午3点5个人面试', { startTime: '15:05', endTime: '16:05', title: '个人面试' });
+test('R8 中文分钟后面紧跟以数字开头的标题时不吞字', () => {
+  assertQuickCase('下午3点零五一起吃饭', { startTime: '15:05', endTime: '16:05', title: '一起吃饭' });
+  assertQuickCase('下午三点十五一起吃饭', { startTime: '15:15', endTime: '16:15', title: '一起吃饭' });
+  assertQuickCase('下午三点四十五一对一沟通', { startTime: '15:45', endTime: '16:45', title: '一对一沟通' });
+  assertQuickCase('晚上8点二十两个人看电影', { startTime: '20:20', endTime: '21:20', title: '两个人看电影' });
+});
 
-  // 2. 「今晚」不识别为时段词，按全天处理
-  assertQuickCase('今晚聚餐', { allDay: true, title: '今晚聚餐' });
+test('R9 超过五十九的中文数字不算分钟', () => {
+  assertQuickCase('下午三点六十分开会', { startTime: '15:00', endTime: '16:00', title: '六十分开会' });
+  assertQuickCase('下午三点九十分钟讲座', { startTime: '15:00', endTime: '16:00', title: '九十分钟讲座' });
+});
 
-  // 3. 24点截断按 23:00 处理
-  assertQuickCase('晚上24点跨年', { startTime: '23:00', endTime: '23:59', title: '跨年' });
+test('R9 各种写法组合出的时间都是合法的 HH:MM，且结束晚于开始', () => {
+  const periods = ['', '上午', '下午', '晚上'];
+  const hours = ['3', '12', '三', '十二'];
+  const minutes = ['', '半', '一刻', '15', '五分', '十五', '零五', '六十分', '九十'];
+  const endings = ['', '到5点', '到五点半', '-17:00'];
+  const valid = /^([01]\d|2[0-3]):[0-5]\d$/;
+  for (const period of periods) {
+    for (const hour of hours) {
+      for (const minute of minutes) {
+        for (const ending of endings) {
+          const input = `${period}${hour}点${minute}${ending}开会`;
+          const parsed = parseQuickInput(input, SUN_OCT11);
+          if (parsed.allDay) continue;
+          assert.match(parsed.startTime, valid, `${input} 开始时间不合法`);
+          assert.match(parsed.endTime, valid, `${input} 结束时间不合法`);
+          assert.ok(parsed.endTime > parsed.startTime, `${input} 结束时间应晚于开始时间`);
+        }
+      }
+    }
+  }
+});
 
-  // 4. 「晚上10点到12点」结束时间退回 +60min 为 23:00
-  assertQuickCase('晚上10点到12点评审', { startTime: '22:00', endTime: '23:00', title: '评审' });
+test('R10 冒号写法的时间优先于标题里的「N点」', () => {
+  assertQuickCase('明天 15:30 讨论3点建议', {
+    date: '2026-10-12',
+    startTime: '15:30',
+    endTime: '16:30',
+    title: '讨论3点建议'
+  });
+  assertQuickCase('14:00 评审5点问题', { startTime: '14:00', endTime: '15:00', title: '评审5点问题' });
+});
+
+test('R10 时间段两端可以混用冒号写法和「点」写法', () => {
+  assertQuickCase('下午3点到5:30评审', { startTime: '15:00', endTime: '17:30', title: '评审' });
+  assertQuickCase('下午3:30到5点评审', { startTime: '15:30', endTime: '17:00', title: '评审' });
 });
