@@ -44,6 +44,11 @@ if (!window.deskcal) {
     windowAction: async () => true,
     exportData: async () => ({ canceled: true }),
     importData: async () => ({ canceled: true }),
+    checkForUpdates: async () => {},
+    downloadUpdate: async () => {},
+    installUpdate: async () => {},
+    openReleasePage: async () => {},
+    onUpdateStatus: () => {},
     onCreateRequest: () => {},
     onOpenSettings: () => {},
     onSettingsChanged: () => {},
@@ -72,7 +77,8 @@ const state = {
   quickEditingDate: null,
   scopeResolver: null,
   undoSnapshot: null,
-  acrylicSupported: false
+  acrylicSupported: false,
+  update: { state: 'unsupported' }
 };
 
 const weekdayLong = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -100,6 +106,13 @@ const MONTH_CELL_LINES = 2;
 const WEEK_CELL_EVENTS = 6;
 const UPCOMING_DAYS = 7;
 const UPCOMING_LIMIT = 8;
+const updateActions = {
+  idle: '检查更新',
+  'not-available': '检查更新',
+  error: '重试',
+  available: '下载并安装',
+  downloaded: '重启并安装'
+};
 const AGENDA_MIN_WIDTH = 240;
 const CALENDAR_MIN_WIDTH = 440;
 const AGENDA_COLLAPSE_BELOW = 150;
@@ -1097,6 +1110,51 @@ function renderSettings() {
   $('#weekendHighlightToggle').checked = state.settings.highlightWeekends !== false;
 }
 
+function updateStatusText(update) {
+  const current = update.currentVersion ? `当前版本 ${update.currentVersion}` : '当前为开发版本';
+  switch (update.state) {
+    case 'checking':
+      return `${current} · 正在检查更新…`;
+    case 'not-available':
+      return `${current} · 已是最新版本`;
+    case 'available':
+      return `${current} · 发现新版本 ${update.version}`;
+    case 'downloading':
+      return `正在下载 ${update.version}… ${update.percent || 0}%`;
+    case 'downloaded':
+      return `${update.version} 已下载完成，重启后生效`;
+    case 'error':
+      return `${current} · ${update.message}`;
+    case 'unsupported':
+      return `${current} · 开发模式下不检查更新`;
+    default:
+      return current;
+  }
+}
+
+function renderUpdate() {
+  const update = state.update;
+  const action = updateActions[update.state];
+  $('#updateStatus').textContent = updateStatusText(update);
+  $('#updateActionButton').textContent =
+    action || { checking: '检查中…', downloading: '下载中…' }[update.state] || '检查更新';
+  $('#updateActionButton').disabled = !action;
+  $('#updateProgress').classList.toggle('hidden', update.state !== 'downloading');
+  $('#updateProgress').value = update.percent || 0;
+  $('#settingsButton').classList.toggle(
+    'has-update',
+    update.state === 'available' || update.state === 'downloaded'
+  );
+}
+
+function runUpdateAction() {
+  const { state: step, version } = state.update;
+  // 下载失败后重试的是下载，检查失败后重试的是检查
+  if (step === 'available' || (step === 'error' && version)) return window.deskcal.downloadUpdate();
+  if (step === 'downloaded') return window.deskcal.installUpdate();
+  return window.deskcal.checkForUpdates();
+}
+
 function render() {
   applyTheme();
   applyAgendaLayout();
@@ -1105,6 +1163,7 @@ function render() {
   renderCalendar();
   renderAgenda();
   renderSettings();
+  renderUpdate();
 }
 
 const PRESET_REMINDERS = new Set([0, 5, 10, 30, 60, 1440]);
@@ -1755,6 +1814,8 @@ function bindEvents() {
   $('#opacityRange').addEventListener('change', (event) =>
     updateSettings({ backgroundOpacity: Number(event.target.value) / 100 })
   );
+  $('#updateActionButton').addEventListener('click', runUpdateAction);
+  $('#releasePageButton').addEventListener('click', () => window.deskcal.openReleasePage());
   $('#frostedGlassToggle').addEventListener('change', (event) =>
     updateSettings({ frostedGlass: event.target.checked })
   );
@@ -1849,6 +1910,16 @@ function bindEvents() {
     state.settings = settings;
     render();
   });
+  window.deskcal.onUpdateStatus((update) => {
+    state.update = update;
+    renderUpdate();
+    if (update.state === 'available' && update.source === 'auto') {
+      showToast('可以在设置里下载并安装', `发现新版本 ${update.version}`, {
+        label: '查看',
+        handler: openSettings
+      });
+    }
+  });
   window.deskcal.onReminder((reminder) => {
     showToast(
       `${reminder.date}${reminder.time ? ` ${reminder.time}` : ''}`,
@@ -1876,6 +1947,7 @@ async function init() {
     ];
     state.settings = initial.settings || {};
     state.acrylicSupported = Boolean(initial.acrylicSupported);
+    state.update = initial.update || state.update;
     if (state.settings.calendarView === 'week') {
       state.viewMode = 'week';
       state.viewDate = parseDate(state.selectedDate);

@@ -387,6 +387,22 @@
           </p>
         </div>
 
+        <div class="settings-section">
+          <div class="settings-section-heading">
+            <div>
+              <h3>关于与更新</h3>
+              <p id="updateStatus">当前版本</p>
+            </div>
+            <button id="updateActionButton" type="button" class="secondary-button">检查更新</button>
+          </div>
+          <progress id="updateProgress" class="update-progress hidden" max="100" value="0"></progress>
+          <p class="settings-hint">
+            更新从 GitHub 下载。网络不通时可以
+            <button id="releasePageButton" type="button" class="link-button">打开发布页</button>
+            手动下载安装包。
+          </p>
+        </div>
+
         <div class="settings-section backup-section">
           <div>
             <h3>数据备份</h3>

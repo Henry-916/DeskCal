@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
 const DesktopPin = require('../src/desktop-pin');
+const Updater = require('../src/updater');
 
 async function run() {
   const window = new BrowserWindow({
@@ -142,6 +143,8 @@ async function run() {
       opacityRange.dispatchEvent(new Event('input', { bubbles: true }));
       const clearestSheetAlpha = getComputedStyle(document.documentElement).getPropertyValue('--sheet-alpha').trim();
 
+      const updateStatusText = document.querySelector('#updateStatus').textContent;
+      const updateActionDisabled = document.querySelector('#updateActionButton').disabled;
       const dialogsExcludedFromDrag = [...document.querySelectorAll('dialog')].every(
         (dialog) => getComputedStyle(dialog).webkitAppRegion === 'no-drag'
       );
@@ -174,6 +177,8 @@ async function run() {
         restoredMonthCells,
         quickPreview,
         clearestSheetAlpha,
+        updateStatusText,
+        updateActionDisabled,
         dialogsExcludedFromDrag,
         agendaCollapsed,
         agendaRestored,
@@ -211,6 +216,8 @@ async function run() {
   assert.match(result.quickPreview, /15:00/, 'quick input should preview the parsed time');
   assert.match(result.quickPreview, /30/, 'quick input should preview the reminder');
   assert.equal(result.clearestSheetAlpha, '0', '背景不透明度应能调到完全透明');
+  assert.match(result.updateStatusText, /开发模式下不检查更新/, '未打包时设置页应说明不检查更新');
+  assert.equal(result.updateActionDisabled, true, '未打包时检查更新按钮应不可用');
   assert.equal(
     result.dialogsExcludedFromDrag,
     true,
@@ -690,6 +697,12 @@ async function run() {
     assert.equal(pin.enabled, false, '停用后应退出桌面组件状态');
     console.log('Desktop pin smoke test passed');
   }
+
+  // 应用内更新：未打包时不发起检查，也不抛错
+  assert.equal(Updater.status().state, 'idle', '更新模块初始状态应为空闲');
+  Updater.check('manual');
+  assert.equal(Updater.status().state, 'unsupported', '未打包时不应发起更新检查');
+  console.log('Updater smoke test passed');
   window.destroy();
 }
 

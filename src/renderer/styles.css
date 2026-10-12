@@ -266,6 +266,26 @@ svg {
   background: var(--tile-strong);
 }
 
+/* 有新版本时在设置按钮上留一个点；桌面组件模式下按钮平时是隐藏的，这时让它淡淡地露出来 */
+.icon-button.has-update {
+  position: relative;
+}
+
+.icon-button.has-update::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+:root[data-window-mode="desktop"] .window-actions:has(.has-update) {
+  opacity: 0.62;
+}
+
 .close-button:hover {
   color: #ffffff;
   background: #c42b1c;
@@ -1236,6 +1256,26 @@ svg {
 
 .secondary-button {
   background: var(--panel-subtle);
+}
+
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  background: none;
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+.update-progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--accent);
 }
 
 .danger-button {

@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('deskcal', {
   windowAction: (action) => ipcRenderer.invoke('window:action', action),
   exportData: () => ipcRenderer.invoke('data:export'),
   importData: () => ipcRenderer.invoke('data:import'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  openReleasePage: () => ipcRenderer.invoke('update:open-releases'),
+  onUpdateStatus: (callback) =>
+    ipcRenderer.on('update:status', (_event, value) => callback(value)),
   onCreateRequest: (callback) =>
     ipcRenderer.on('event:create-request', () => callback()),
   onOpenSettings: (callback) =>

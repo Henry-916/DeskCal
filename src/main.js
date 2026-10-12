@@ -9,7 +9,8 @@ const {
   dialog,
   screen,
   powerMonitor,
-  nativeTheme
+  nativeTheme,
+  shell
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -17,6 +18,7 @@ const CalendarCore = require('./calendar-core');
 const DataModel = require('./data-model');
 const DataStore = require('./data-store');
 const DesktopPin = require('./desktop-pin');
+const Updater = require('./updater');
 const { DEFAULT_DATA } = DataModel;
 
 let mainWindow = null;
@@ -281,6 +283,14 @@ function updateTrayMenu() {
         }
       },
       {
+        label: '检查更新',
+        click: () => {
+          showWindow();
+          mainWindow.webContents.send('settings:open-request');
+          Updater.check('manual');
+        }
+      },
+      {
         label: '退出',
         click: () => {
           isQuitting = true;
@@ -383,6 +393,7 @@ function registerIpc() {
     events: appData.events,
     calendars: appData.calendars,
     settings: appData.settings,
+    update: Updater.status(),
     acrylicSupported,
     platform: process.platform,
     version: app.getVersion(),
@@ -429,6 +440,16 @@ function registerIpc() {
     updateTrayMenu();
     return appData.settings;
   });
+
+  ipcMain.handle('update:check', () => Updater.check('manual'));
+  ipcMain.handle('update:download', () => Updater.download());
+  ipcMain.handle('update:install', () => {
+    if (Updater.status().state !== 'downloaded') return;
+    // 安装前窗口必须能真正关闭，而不是隐藏到托盘
+    isQuitting = true;
+    Updater.install();
+  });
+  ipcMain.handle('update:open-releases', () => shell.openExternal(Updater.releasesUrl));
 
   ipcMain.handle('window:action', (_event, action) => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
@@ -522,6 +543,10 @@ if (!gotTheLock) {
     createTray();
     checkReminders(true);
     reminderTimer = setInterval(() => checkReminders(false), 15000);
+    Updater.onStatus((status) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', status);
+    });
+    setTimeout(() => Updater.check('auto'), 15000);
     powerMonitor.on('resume', () => setTimeout(() => checkReminders(true), 1500));
     screen.on('display-removed', () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
