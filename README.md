@@ -132,8 +132,6 @@ npm run dist:win
 
 正式产物输出到 `release/DeskCal-Setup-0.6.4-x64.exe`。
 
-版本号必须是三段式（如 `0.6.4`）。应用内更新只认这种格式，`0.6.3.1` 这样的四段版本号会让更新直接报错。
-
 发布新版本时，GitHub Release 里要同时上传 `release/` 下的安装包、`latest.yml` 和 `.exe.blockmap`，标签用 `v` 加版本号（如 `v0.6.4`）。应用内更新靠 `latest.yml` 发现新版本并校验安装包，缺了它已安装的用户就收不到更新。
 
 ## 快捷操作
