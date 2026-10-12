@@ -346,6 +346,10 @@
     const dateResult = parseDateToken(original, base);
     const timeResult = parseTimeToken(original);
     const reminderResult = parseReminder(original);
+    // 提醒最多提前 7 天，再早的保存时会被丢掉，所以在这里就说清楚
+    if (reminderResult.reminders.some((minutes) => minutes > 10080)) {
+      return { ok: false, error: '提醒最多提前 7 天' };
+    }
     const recurrenceResult = parseRecurrence(original);
 
     if (timeResult?.rolloverDay) {

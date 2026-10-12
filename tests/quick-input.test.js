@@ -370,3 +370,13 @@ test('R10 时间段两端可以混用冒号写法和「点」写法', () => {
   assertQuickCase('下午3点到5:30评审', { startTime: '15:00', endTime: '17:30', title: '评审' });
   assertQuickCase('下午3:30到5点评审', { startTime: '15:30', endTime: '17:00', title: '评审' });
 });
+
+test('提醒超过 7 天时直接报错，而不是保存后被悄悄丢掉', () => {
+  const tooEarly = parseQuickInput('明天下午3点开会，提前8天提醒', NOW);
+  assert.equal(tooEarly.ok, false);
+  assert.match(tooEarly.error, /7 天/);
+
+  const allowed = parseQuickInput('明天下午3点开会，提前7天提醒', NOW);
+  assert.equal(allowed.ok, true);
+  assert.deepEqual(allowed.reminders, [10080]);
+});
