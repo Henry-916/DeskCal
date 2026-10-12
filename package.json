@@ -1,6 +1,6 @@
 {
   "name": "deskcal",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Windows desktop calendar with local schedules and reminders",
   "main": "src/main.js",
   "scripts": {
