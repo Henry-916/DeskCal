@@ -15,7 +15,7 @@ const path = require('node:path');
 const CalendarCore = require('./calendar-core');
 const DataModel = require('./data-model');
 const DataStore = require('./data-store');
-const { DEFAULT_DATA, SCHEMA_VERSION } = DataModel;
+const { DEFAULT_DATA } = DataModel;
 
 let mainWindow = null;
 let tray = null;
@@ -472,6 +472,7 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
+    if (!app.isReady()) return;
     showWindow();
   });
 
