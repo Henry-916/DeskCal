@@ -709,7 +709,7 @@ function bindAgendaItems() {
       const event = state.events.find((item) => item.id === button.dataset.completeId);
       if (!event) return;
       const isRecurring = normalizeRecurrence(event).frequency !== 'none';
-      if (isRecurring) {
+      if (isRecurring && !event.completed) {
         const item = button.closest('.agenda-item');
         const occurrenceDate = item?.dataset.occurrenceDate || state.selectedDate;
         if (state.searchQuery.trim()) {

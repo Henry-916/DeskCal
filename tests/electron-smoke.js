@@ -548,6 +548,92 @@ async function run() {
   assert.equal(f18Result.completedIsTrue, true, '标记完成后日程 completed 应变为 true');
 
   console.log('F18 regression smoke test passed:', JSON.stringify(f18Result));
+
+  // R5 阶段验收：全新加载页面并在干净状态下验证已完成重复系列恢复待办（列表与搜索）
+  await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
+
+  const r5Result = await window.webContents.executeJavaScript(`
+    (async () => {
+      window.confirm = () => true;
+      window.prompt = () => '测试日历';
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      await wait(50);
+
+      const today = state.selectedDate;
+
+      const createCompletedSeries = (id) => ({
+        id,
+        title: 'R5 已完成重复日程',
+        date: today,
+        allDay: true,
+        startTime: '',
+        endTime: '',
+        allDayReminderTime: '09:00',
+        reminders: [],
+        recurrence: { frequency: 'daily', interval: 1, until: null, count: null },
+        repeat: 'daily',
+        exceptions: [],
+        calendarId: 'personal',
+        category: 'work',
+        color: '#6750e8',
+        completed: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      // 场景 1：在列表视图中点击已完成的重复系列 ✓，恢复整个系列
+      state.searchQuery = '';
+      state.events = [createCompletedSeries('r5-list-series')];
+      render();
+
+      const listBtn = document.querySelector('.agenda-item[data-id="r5-list-series"] .complete-button');
+      listBtn?.click();
+      await wait(50);
+
+      const seriesAfterList = state.events.find((e) => e.id === 'r5-list-series');
+      const scenario1 = {
+        completedIsFalse: seriesAfterList?.completed === false,
+        exceptionsEmpty: (seriesAfterList?.exceptions || []).length === 0,
+        eventsCount: state.events.length
+      };
+
+      // 场景 2：独立重置干净的已完成日程，在搜索结果中点击 ✓，恢复整个系列且不打开快速编辑卡
+      state.events = [createCompletedSeries('r5-search-series')];
+      state.searchQuery = '已完成';
+      render();
+
+      const searchBtn = document.querySelector('.agenda-item[data-id="r5-search-series"] .complete-button');
+      searchBtn?.click();
+      await wait(50);
+
+      const quickEditOpened = Boolean(document.querySelector('#quickEditDialog')?.open);
+      document.querySelector('#quickEditDialog')?.close();
+      const seriesAfterSearch = state.events.find((e) => e.id === 'r5-search-series');
+      const scenario2 = {
+        quickEditOpened,
+        completedIsFalse: seriesAfterSearch?.completed === false,
+        exceptionsEmpty: (seriesAfterSearch?.exceptions || []).length === 0,
+        eventsCount: state.events.length
+      };
+
+      return { scenario1, scenario2 };
+    })()
+  `);
+
+  console.log('R5 diagnostic output:', JSON.stringify(r5Result));
+
+  // 场景 1 断言
+  assert.equal(r5Result.scenario1.completedIsFalse, true, '场景1：列表中原系列的 completed 应恢复为 false');
+  assert.equal(r5Result.scenario1.exceptionsEmpty, true, '场景1：列表中原系列的 exceptions 应为空');
+  assert.equal(r5Result.scenario1.eventsCount, 1, '场景1：列表中点击后 state.events 仍应只有 1 条日程');
+
+  // 场景 2 断言
+  assert.equal(r5Result.scenario2.quickEditOpened, false, '场景2：搜索结果中点击不应打开快速编辑卡');
+  assert.equal(r5Result.scenario2.completedIsFalse, true, '场景2：搜索结果中原系列的 completed 应恢复为 false');
+  assert.equal(r5Result.scenario2.exceptionsEmpty, true, '场景2：搜索结果中原系列的 exceptions 应为空');
+  assert.equal(r5Result.scenario2.eventsCount, 1, '场景2：搜索结果中点击后 state.events 仍应只有 1 条日程');
+
+  console.log('R5 regression smoke test passed:', JSON.stringify(r5Result));
   window.destroy();
 }
 
