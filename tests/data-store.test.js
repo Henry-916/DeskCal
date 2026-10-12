@@ -233,3 +233,32 @@ test('F02 留存损坏文件失败时抛错且不覆盖原损坏文件', () => {
     assert.equal(fs.readFileSync(dataPath, 'utf8'), corruptContent);
   });
 });
+
+test('R1 备份刷新时间以复制时刻为准，Windows复制后连续写入不冲掉备份', () => {
+  withTempDir((dir) => {
+    const dataPath = path.join(dir, 'deskcal-data.json');
+    const bakPath = `${dataPath}.bak`;
+    const dataA = { schemaVersion: 2, name: 'A' };
+    const dataZ = { schemaVersion: 2, name: 'Z' };
+    const dataB = { schemaVersion: 2, name: 'B' };
+    const dataC = { schemaVersion: 2, name: 'C' };
+
+    fs.writeFileSync(dataPath, JSON.stringify(dataA, null, 2), 'utf8');
+    fs.writeFileSync(bakPath, JSON.stringify(dataZ, null, 2), 'utf8');
+
+    const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
+    fs.utimesSync(dataPath, oneHourAgo, oneHourAgo);
+    fs.utimesSync(bakPath, oneHourAgo, oneHourAgo);
+
+    // 不传 now，连续调用两次 saveStore，分别写入 B 和 C
+    saveStore(dataPath, dataB);
+    const bakAfterFirst = JSON.parse(fs.readFileSync(bakPath, 'utf8'));
+    assert.deepEqual(bakAfterFirst, dataA, '第一次之后 .bak 的内容应是 A');
+
+    saveStore(dataPath, dataC);
+    const bakAfterSecond = JSON.parse(fs.readFileSync(bakPath, 'utf8'));
+    const mainAfterSecond = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    assert.deepEqual(bakAfterSecond, dataA, '第二次之后 .bak 的内容仍是 A');
+    assert.deepEqual(mainAfterSecond, dataC, '主文件应是 C');
+  });
+});

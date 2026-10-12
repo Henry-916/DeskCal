@@ -34,6 +34,7 @@ function saveStore(dataPath, data, options = {}) {
 
     if (doBackup) {
       fs.copyFileSync(dataPath, bakPath);
+      fs.utimesSync(bakPath, now, now);
     }
   }
 
