@@ -142,6 +142,10 @@ async function run() {
       opacityRange.dispatchEvent(new Event('input', { bubbles: true }));
       const clearestSheetAlpha = getComputedStyle(document.documentElement).getPropertyValue('--sheet-alpha').trim();
 
+      const dialogsExcludedFromDrag = [...document.querySelectorAll('dialog')].every(
+        (dialog) => getComputedStyle(dialog).webkitAppRegion === 'no-drag'
+      );
+
       document.querySelector('#agendaToggle').click();
       await wait(50);
       const agendaCollapsed =
@@ -170,6 +174,7 @@ async function run() {
         restoredMonthCells,
         quickPreview,
         clearestSheetAlpha,
+        dialogsExcludedFromDrag,
         agendaCollapsed,
         agendaRestored,
         runtimeError: window.__deskcalSmokeError || null
@@ -206,6 +211,11 @@ async function run() {
   assert.match(result.quickPreview, /15:00/, 'quick input should preview the parsed time');
   assert.match(result.quickPreview, /30/, 'quick input should preview the reminder');
   assert.equal(result.clearestSheetAlpha, '0', '背景不透明度应能调到完全透明');
+  assert.equal(
+    result.dialogsExcludedFromDrag,
+    true,
+    '弹窗必须声明不可拖动，否则盖在拖动区域上的按钮点不动'
+  );
   assert.equal(result.agendaCollapsed, true, '收起按钮应隐藏日程栏并让日历占满宽度');
   assert.equal(result.agendaRestored, true, '再次点击应恢复日程栏');
   assert.equal(result.runtimeError, null, 'renderer should not report runtime errors');

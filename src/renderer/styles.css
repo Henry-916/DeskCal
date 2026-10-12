@@ -1039,7 +1039,13 @@ svg {
   line-height: 1.5;
 }
 
-/* 弹窗：不透明面板，保证表单可读 */
+/* 弹窗：不透明面板，保证表单可读。
+   弹窗盖在可拖动区域上时，下面的拖动区域仍会吞掉点击，所以弹窗和提示条要声明自己不可拖动 */
+.modal,
+.toast-region {
+  -webkit-app-region: no-drag;
+}
+
 .modal {
   width: min(560px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
