@@ -137,6 +137,11 @@ async function run() {
       const quickPreview = document.querySelector('#quickAddPreview').textContent;
       quickAddDialog.close();
 
+      const opacityRange = document.querySelector('#opacityRange');
+      opacityRange.value = '0';
+      opacityRange.dispatchEvent(new Event('input', { bubbles: true }));
+      const clearestSheetAlpha = getComputedStyle(document.documentElement).getPropertyValue('--sheet-alpha').trim();
+
       document.querySelector('#agendaToggle').click();
       await wait(50);
       const agendaCollapsed =
@@ -164,6 +169,7 @@ async function run() {
         dragMovedOccurrence,
         restoredMonthCells,
         quickPreview,
+        clearestSheetAlpha,
         agendaCollapsed,
         agendaRestored,
         runtimeError: window.__deskcalSmokeError || null
@@ -199,6 +205,7 @@ async function run() {
   assert.equal(result.restoredMonthCells, 42, 'month view should restore the 42-cell grid');
   assert.match(result.quickPreview, /15:00/, 'quick input should preview the parsed time');
   assert.match(result.quickPreview, /30/, 'quick input should preview the reminder');
+  assert.equal(result.clearestSheetAlpha, '0', '背景不透明度应能调到完全透明');
   assert.equal(result.agendaCollapsed, true, '收起按钮应隐藏日程栏并让日历占满宽度');
   assert.equal(result.agendaRestored, true, '再次点击应恢复日程栏');
   assert.equal(result.runtimeError, null, 'renderer should not report runtime errors');

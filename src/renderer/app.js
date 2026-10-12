@@ -13,7 +13,8 @@ if (!window.deskcal) {
     settings: {
       theme: 'system',
       windowMode: 'desktop',
-      backgroundOpacity: 0.3,
+      backgroundOpacity: null,
+      frostedGlass: true,
       clickThrough: false,
       startOnBoot: false,
       sound: true,
@@ -71,7 +72,7 @@ const state = {
   quickEditingDate: null,
   scopeResolver: null,
   undoSnapshot: null,
-  material: 'none'
+  acrylicSupported: false
 };
 
 const weekdayLong = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -95,7 +96,6 @@ const windowModeHints = {
   floating: '像普通应用窗口一样显示，并出现在任务栏。',
   top: '始终显示在其他窗口上方。'
 };
-const DEFAULT_BACKGROUND_OPACITY = 0.3;
 const MONTH_CELL_LINES = 2;
 const WEEK_CELL_EVENTS = 6;
 const UPCOMING_DAYS = 7;
@@ -276,22 +276,27 @@ function visibleChineseLabel(info) {
   return { text: '', type: 'none' };
 }
 
+// 毛玻璃由系统绘制；系统不支持或用户关掉时窗口是纯透明的，壁纸原样透出来
+function windowMaterial() {
+  return state.acrylicSupported && state.settings.frostedGlass !== false ? 'acrylic' : 'none';
+}
+
 function backgroundOpacity() {
-  const value = Number(state.settings.backgroundOpacity);
-  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : DEFAULT_BACKGROUND_OPACITY;
+  const value = state.settings.backgroundOpacity;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.min(1, Math.max(0, value));
+  // 用户没调过时：没有模糊就把底色放实一些，保证第一眼可读
+  return windowMaterial() === 'acrylic' ? 0.3 : 0.7;
 }
 
 function applySheetOpacity(opacity) {
-  // 没有系统毛玻璃时壁纸会原样透出来，底色需要更实才能保证可读
-  const floor = state.material === 'acrylic' ? 0 : 0.55;
-  document.documentElement.style.setProperty('--sheet-alpha', String(floor + (1 - floor) * opacity));
+  document.documentElement.style.setProperty('--sheet-alpha', String(opacity));
 }
 
 function applyTheme() {
   const root = document.documentElement;
   root.dataset.theme = state.settings.theme || 'system';
   root.dataset.windowMode = state.settings.windowMode || 'desktop';
-  root.dataset.material = state.material;
+  root.dataset.material = windowMaterial();
   applySheetOpacity(backgroundOpacity());
 }
 
@@ -1075,6 +1080,8 @@ function renderSettings() {
   });
   $('#windowModeHint').textContent = windowModeHints[state.settings.windowMode] || '';
   $('#minimizeButton').classList.toggle('hidden', state.settings.windowMode === 'desktop');
+  $('#frostedGlassRow').classList.toggle('hidden', !state.acrylicSupported);
+  $('#frostedGlassToggle').checked = state.settings.frostedGlass !== false;
   const opacity = Math.round(backgroundOpacity() * 100);
   $('#opacityRange').value = opacity;
   $('#opacityValue').textContent = `${opacity}%`;
@@ -1748,6 +1755,9 @@ function bindEvents() {
   $('#opacityRange').addEventListener('change', (event) =>
     updateSettings({ backgroundOpacity: Number(event.target.value) / 100 })
   );
+  $('#frostedGlassToggle').addEventListener('change', (event) =>
+    updateSettings({ frostedGlass: event.target.checked })
+  );
   $('#clickThroughToggle').addEventListener('change', (event) =>
     updateSettings({ clickThrough: event.target.checked })
   );
@@ -1865,7 +1875,7 @@ async function init() {
       { id: 'personal', name: '个人', color: '#6750e8', visible: true }
     ];
     state.settings = initial.settings || {};
-    state.material = initial.material || 'none';
+    state.acrylicSupported = Boolean(initial.acrylicSupported);
     if (state.settings.calendarView === 'week') {
       state.viewMode = 'week';
       state.viewDate = parseDate(state.selectedDate);

@@ -20,7 +20,8 @@ const DEFAULT_DATA = {
   settings: {
     theme: 'system',
     windowMode: 'desktop',
-    backgroundOpacity: 0.3,
+    backgroundOpacity: null,
+    frostedGlass: true,
     clickThrough: false,
     startOnBoot: false,
     showCompleted: true,

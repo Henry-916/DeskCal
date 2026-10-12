@@ -32,10 +32,13 @@ let pendingBounds = false;
 const activeNotifications = new Set();
 
 // 系统毛玻璃（窗口背后的模糊）需要 Windows 11 22H2（22621）及以上
-const windowMaterial =
-  process.platform === 'win32' && Number(process.getSystemVersion().split('.')[2]) >= 22621
-    ? 'acrylic'
-    : 'none';
+const acrylicSupported =
+  process.platform === 'win32' && Number(process.getSystemVersion().split('.')[2]) >= 22621;
+let appliedMaterial = 'none';
+
+function windowMaterial() {
+  return acrylicSupported && appData.settings.frostedGlass !== false ? 'acrylic' : 'none';
+}
 
 const appIconPath = path.join(__dirname, '..', 'assets', 'deskcal-icon.png');
 const iconSvg = `
@@ -134,6 +137,12 @@ function applyWindowSettings() {
   if (!pinToDesktop) desktopPin?.disable();
   // 毛玻璃的深浅跟随这里，页面里的 prefers-color-scheme 也一样
   nativeTheme.themeSource = theme === 'light' || theme === 'dark' ? theme : 'system';
+  if (appliedMaterial !== windowMaterial()) {
+    appliedMaterial = windowMaterial();
+    mainWindow.setBackgroundMaterial(appliedMaterial);
+    // 关掉材质后窗口底色会被重置成不透明的白色，要再设回透明
+    if (appliedMaterial === 'none') mainWindow.setBackgroundColor('#00000000');
+  }
   if (!desktopPin?.enabled) mainWindow.setAlwaysOnTop(windowMode === 'top', 'floating');
   mainWindow.setSkipTaskbar(windowMode !== 'floating');
   mainWindow.setMinimizable(windowMode !== 'desktop');
@@ -144,6 +153,8 @@ function applyWindowSettings() {
 
 function createWindow() {
   const bounds = ensureVisibleBounds(appData.window);
+  // 只有创建时就带毛玻璃的窗口，之后才能在毛玻璃和纯透明之间来回切换
+  appliedMaterial = acrylicSupported ? 'acrylic' : 'none';
   mainWindow = new BrowserWindow({
     ...bounds,
     minWidth: 720,
@@ -151,7 +162,7 @@ function createWindow() {
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
-    ...(windowMaterial === 'acrylic' ? { backgroundMaterial: 'acrylic' } : {}),
+    ...(appliedMaterial === 'acrylic' ? { backgroundMaterial: 'acrylic' } : {}),
     show: false,
     resizable: true,
     maximizable: false,
@@ -372,7 +383,7 @@ function registerIpc() {
     events: appData.events,
     calendars: appData.calendars,
     settings: appData.settings,
-    material: windowMaterial,
+    acrylicSupported,
     platform: process.platform,
     version: app.getVersion(),
     dataPath
