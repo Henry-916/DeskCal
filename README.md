@@ -6,7 +6,12 @@
 
 DeskCal 是一款面向 Windows 10/11 的本地优先桌面日历。它专注于快速记录、可靠提醒、桌面常驻和中国用户熟悉的日历信息，不依赖账号或云端服务。
 
-当前版本：**0.6.1 桌面嵌入版**
+当前版本：**0.6.2 桌面嵌入版**
+
+## 0.6.2 新增
+
+- 应用内更新：设置里可以检查更新，发现新版本后下载、校验并自动安装；启动时也会自动检查一次，有新版本只提示、不自动下载
+- 修复日程栏收起时，设置页和日程表单的关闭按钮点不动的问题
 
 ## 0.6.1 新增
 
@@ -105,7 +110,9 @@ npm run smoke
 npm run dist:win
 ```
 
-正式产物输出到 `release/DeskCal-Setup-0.6.1-x64.exe`。
+正式产物输出到 `release/DeskCal-Setup-0.6.2-x64.exe`。
+
+发布新版本时，GitHub Release 里要同时上传 `release/` 下的安装包、`latest.yml` 和 `.exe.blockmap`，标签用 `v` 加版本号（如 `v0.6.2`）。应用内更新靠 `latest.yml` 发现新版本并校验安装包，缺了它已安装的用户就收不到更新。
 
 ## 快捷操作
 
@@ -127,6 +134,7 @@ npm run dist:win
 - `src/data-model.js`：schema 版本、数据规范化和旧数据迁移
 - `src/main.js`：Electron 生命周期、窗口、托盘、持久化和系统通知
 - `src/desktop-pin.js`：桌面组件模式的窗口层级管理（通过 `koffi` 调用 Windows API）
+- `src/updater.js` / `src/update-source.js`：应用内更新（基于 `electron-updater`）和更新来源仓库
 - `src/preload.js`：受限 IPC 桥接
 - `src/renderer/`：日历界面和交互
 - `tests/`：领域逻辑、迁移、渲染契约和 Electron 冒烟测试
