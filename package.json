@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "check": "node --check src/main.js && node --check src/data-store.js && node --check src/preload.js && node --check src/calendar-core.js && node --check src/chinese-calendar.js && node --check src/quick-input.js && node --check src/planner-core.js && node --check src/data-model.js && node --check src/renderer/app.js && node --check tests/electron-smoke.js && node --check tests/data-store.test.js",
+    "check": "node --check src/main.js && node --check src/data-store.js && node --check src/preload.js && node --check src/calendar-core.js && node --check src/chinese-calendar.js && node --check src/quick-input.js && node --check src/planner-core.js && node --check src/data-model.js && node --check src/desktop-pin.js && node --check src/renderer/app.js && node --check tests/electron-smoke.js && node --check tests/data-store.test.js",
     "test": "node --test tests/data-store.test.js tests/calendar-core.test.js tests/chinese-calendar.test.js tests/quick-input.test.js tests/planner-core.test.js tests/data-model.test.js tests/renderer-contract.test.js",
     "smoke": "electron tests/electron-smoke.js",
     "dist:win": "electron-builder --win nsis --x64"
@@ -35,6 +35,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
+    "koffi": "3.3.1",
     "lunar-javascript": "^1.7.7"
   },
   "build": {
@@ -44,6 +45,9 @@
     "copyright": "Copyright © 2026 DeskCal",
     "asar": true,
     "compression": "maximum",
+    "asarUnpack": [
+      "node_modules/@koromix/**"
+    ],
     "directories": {
       "output": "release",
       "buildResources": "assets"

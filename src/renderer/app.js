@@ -13,7 +13,7 @@ if (!window.deskcal) {
     settings: {
       theme: 'system',
       windowMode: 'desktop',
-      opacity: 0.96,
+      backgroundOpacity: 0.3,
       clickThrough: false,
       startOnBoot: false,
       sound: true,
@@ -70,7 +70,8 @@ const state = {
   quickEditingId: null,
   quickEditingDate: null,
   scopeResolver: null,
-  undoSnapshot: null
+  undoSnapshot: null,
+  material: 'none'
 };
 
 const weekdayLong = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -89,6 +90,19 @@ const repeatLabels = {
   monthly: '每月重复',
   yearly: '每年重复'
 };
+const windowModeHints = {
+  desktop: '嵌入桌面：始终位于其他窗口下方，按 Win+D 显示桌面时依然可见；点击托盘图标可临时调到最前。',
+  floating: '像普通应用窗口一样显示，并出现在任务栏。',
+  top: '始终显示在其他窗口上方。'
+};
+const DEFAULT_BACKGROUND_OPACITY = 0.3;
+const MONTH_CELL_LINES = 2;
+const WEEK_CELL_EVENTS = 6;
+const UPCOMING_DAYS = 7;
+const UPCOMING_LIMIT = 8;
+const AGENDA_MIN_WIDTH = 240;
+const CALENDAR_MIN_WIDTH = 440;
+const AGENDA_COLLAPSE_BELOW = 150;
 const repeatUnits = {
   daily: '天',
   weekly: '周',
@@ -207,9 +221,37 @@ function formatRecurrenceLabel(event) {
   return limit ? `${interval} · ${limit}` : interval;
 }
 
-function formatTodayLabel() {
+function isoWeekNumber(date) {
+  const thursday = addDays(startOfWeek(date), 3);
+  const firstThursday = addDays(startOfWeek(new Date(thursday.getFullYear(), 0, 4, 12)), 3);
+  return Math.round((thursday - firstThursday) / (7 * 86400000)) + 1;
+}
+
+function renderCalendarHeading(isWeekView, gridStart, year, month) {
   const today = new Date();
-  return `${today.getMonth() + 1}月${today.getDate()}日 · ${weekdayLong[today.getDay()]}`;
+  const parts = [];
+  if (isWeekView) {
+    const gridEnd = addDays(gridStart, 6);
+    const endMonth =
+      gridEnd.getMonth() === gridStart.getMonth() ? '' : `${gridEnd.getMonth() + 1}月`;
+    $('#monthTitle').textContent = `${gridStart.getMonth() + 1}月`;
+    if (gridStart.getFullYear() !== today.getFullYear()) parts.push(gridStart.getFullYear());
+    parts.push(
+      `${gridStart.getDate()}日 – ${endMonth}${gridEnd.getDate()}日`,
+      `第 ${isoWeekNumber(gridStart)} 周`
+    );
+  } else {
+    $('#monthTitle').textContent = `${month + 1}月`;
+    parts.push(year);
+    if (year === today.getFullYear() && month === today.getMonth()) {
+      parts.push(`今天 ${today.getDate()}日 ${weekdayLong[today.getDay()]}`);
+      if (state.settings.showLunar !== false) {
+        const info = ChineseCalendar.getDayInfo(today);
+        parts.push(`农历${info.lunarMonthText}${info.lunarDayText}`);
+      }
+    }
+  }
+  $('#todayLabel').textContent = parts.join(' · ');
 }
 
 function visibleChineseLabel(info) {
@@ -234,8 +276,78 @@ function visibleChineseLabel(info) {
   return { text: '', type: 'none' };
 }
 
+function backgroundOpacity() {
+  const value = Number(state.settings.backgroundOpacity);
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : DEFAULT_BACKGROUND_OPACITY;
+}
+
+function applySheetOpacity(opacity) {
+  // 没有系统毛玻璃时壁纸会原样透出来，底色需要更实才能保证可读
+  const floor = state.material === 'acrylic' ? 0 : 0.55;
+  document.documentElement.style.setProperty('--sheet-alpha', String(floor + (1 - floor) * opacity));
+}
+
 function applyTheme() {
-  document.documentElement.dataset.theme = state.settings.theme || 'system';
+  const root = document.documentElement;
+  root.dataset.theme = state.settings.theme || 'system';
+  root.dataset.windowMode = state.settings.windowMode || 'desktop';
+  root.dataset.material = state.material;
+  applySheetOpacity(backgroundOpacity());
+}
+
+function applyAgendaLayout() {
+  const workspace = $('.workspace');
+  const collapsed = Boolean(state.settings.agendaCollapsed);
+  const width = Number(state.settings.agendaWidth);
+  workspace.classList.toggle('agenda-collapsed', collapsed);
+  if (width > 0) workspace.style.setProperty('--agenda-width', `${width}px`);
+  else workspace.style.removeProperty('--agenda-width');
+  const label = collapsed ? '展开日程栏' : '收起日程栏';
+  $('#agendaToggle').title = label;
+  $('#agendaToggle').setAttribute('aria-label', label);
+  $('#agendaToggle').setAttribute('aria-expanded', String(!collapsed));
+}
+
+function toggleAgenda() {
+  return updateSettings({ agendaCollapsed: !state.settings.agendaCollapsed });
+}
+
+function bindAgendaResizer() {
+  const workspace = $('.workspace');
+  const resizer = $('#agendaResizer');
+  let drag = null;
+
+  resizer.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    resizer.setPointerCapture(event.pointerId);
+    drag = { startX: event.clientX, moved: false, width: 0, collapsed: false };
+    workspace.classList.add('agenda-resizing');
+  });
+  resizer.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) < 4) return;
+    const width = workspace.getBoundingClientRect().right - event.clientX;
+    drag.moved = true;
+    drag.collapsed = width < AGENDA_COLLAPSE_BELOW;
+    drag.width = Math.round(
+      Math.max(AGENDA_MIN_WIDTH, Math.min(width, workspace.clientWidth - CALENDAR_MIN_WIDTH))
+    );
+    workspace.classList.toggle('agenda-collapsed', drag.collapsed);
+    workspace.style.setProperty('--agenda-width', `${drag.width}px`);
+  });
+  const finishDrag = () => {
+    if (!drag) return;
+    const { moved, width, collapsed } = drag;
+    drag = null;
+    workspace.classList.remove('agenda-resizing');
+    if (!moved) return;
+    updateSettings(
+      collapsed ? { agendaCollapsed: true } : { agendaCollapsed: false, agendaWidth: width }
+    );
+  };
+  resizer.addEventListener('pointerup', finishDrag);
+  resizer.addEventListener('pointercancel', finishDrag);
+  resizer.addEventListener('dblclick', toggleAgenda);
 }
 
 function renderWeekHeader() {
@@ -243,6 +355,65 @@ function renderWeekHeader() {
   $('#weekHeader').innerHTML = weekdayShortMonday
     .map((day, index) => `<span class="${highlight && index >= 5 ? 'weekend' : ''}">${day}</span>`)
     .join('');
+}
+
+// 月格里只写标题，放不下的折成“另 N 项”
+function renderMonthEvents(events, conflictIds) {
+  const shown = events.length > MONTH_CELL_LINES ? events.slice(0, MONTH_CELL_LINES - 1) : events;
+  const hidden = events.length - shown.length;
+  const chips = shown
+    .map(
+      (event) =>
+        `<span class="day-chip ${conflictIds.has(event.id) ? 'conflict' : ''} ${
+          event.completed ? 'completed' : ''
+        }" style="--event-color:${escapeHtml(eventColor(event))}">${escapeHtml(event.title)}</span>`
+    )
+    .join('');
+  return `<span class="day-events">${chips}${
+    hidden ? `<span class="day-more">另 ${hidden} 项</span>` : ''
+  }</span>`;
+}
+
+function renderWeekEvents(events, conflictIds, key) {
+  const hidden = Math.max(0, events.length - WEEK_CELL_EVENTS);
+  const previews = events
+    .slice(0, WEEK_CELL_EVENTS)
+    .map((event) => {
+      const startMinutes = PlannerCore.minutesFromTime(event.startTime);
+      const endMinutes = PlannerCore.minutesFromTime(event.endTime);
+      const duration =
+        !event.allDay && startMinutes !== null && endMinutes > startMinutes
+          ? endMinutes - startMinutes
+          : 30;
+      const cardHeight = event.allDay ? 0 : Math.max(40, Math.min(84, 28 + duration / 5));
+      return `
+        <span
+          class="week-event-preview ${conflictIds.has(event.id) ? 'conflict' : ''} ${
+            event.completed ? 'completed' : ''
+          }"
+          draggable="true"
+          data-drag-event-id="${escapeHtml(event.id)}"
+          data-occurrence-date="${key}"
+          style="--event-color:${escapeHtml(eventColor(event))};min-height:${cardHeight}px"
+          title="${escapeHtml(event.title)}（拖动调整日期和时间）"
+        >
+          <span class="week-time">${escapeHtml(event.allDay ? '全天' : event.startTime || '--:--')}</span>
+          <span class="week-title">${escapeHtml(event.title)}</span>
+          ${
+            event.allDay
+              ? ''
+              : `<span
+                  class="week-resize-handle"
+                  data-resize-event-id="${escapeHtml(event.id)}"
+                  data-occurrence-date="${key}"
+                  title="向下拖动调整时长"
+                ></span>`
+          }
+        </span>
+      `;
+    })
+    .join('');
+  return `${previews}${hidden ? `<span class="day-more">另 ${hidden} 项</span>` : ''}`;
 }
 
 function renderDayCell(date, referenceMonth, isWeekView) {
@@ -258,52 +429,6 @@ function renderDayCell(date, referenceMonth, isWeekView) {
     holiday && state.settings.showHolidayBadges !== false
       ? `<span class="day-badge ${holiday.type}">${holiday.badge}</span>`
       : '';
-  const dots = events
-    .slice(0, 3)
-    .map(
-      (event) =>
-        `<span class="event-dot ${conflictIds.has(event.id) ? 'conflict' : ''}" style="background:${escapeHtml(
-          eventColor(event)
-        )}"></span>`
-    )
-    .join('');
-  const more = events.length > 3 ? `<span class="event-more">+${events.length - 3}</span>` : '';
-  const weekPreviews = isWeekView
-    ? events
-        .slice(0, 5)
-        .map((event) => {
-          const startMinutes = PlannerCore.minutesFromTime(event.startTime);
-          const endMinutes = PlannerCore.minutesFromTime(event.endTime);
-          const duration =
-            !event.allDay && startMinutes !== null && endMinutes > startMinutes
-              ? endMinutes - startMinutes
-              : 30;
-          const cardHeight = event.allDay ? 28 : Math.max(30, Math.min(54, 24 + duration / 10));
-          return `
-            <span
-              class="week-event-preview ${conflictIds.has(event.id) ? 'conflict' : ''}"
-              draggable="true"
-              data-drag-event-id="${escapeHtml(event.id)}"
-              data-occurrence-date="${key}"
-              style="--event-color:${escapeHtml(eventColor(event))};min-height:${cardHeight}px"
-              title="拖动调整日期和时间"
-            >
-              ${escapeHtml(event.allDay ? event.title : `${event.startTime} ${event.title}`)}
-              ${
-                event.allDay
-                  ? ''
-                  : `<span
-                      class="week-resize-handle"
-                      data-resize-event-id="${escapeHtml(event.id)}"
-                      data-occurrence-date="${key}"
-                      title="向下拖动调整时长"
-                    ></span>`
-              }
-            </span>
-          `;
-        })
-        .join('')
-    : '';
   return `
     <button
       class="day-cell ${!isWeekView && date.getMonth() !== referenceMonth ? 'outside' : ''} ${
@@ -323,11 +448,14 @@ function renderDayCell(date, referenceMonth, isWeekView) {
     >
       <span class="day-top">
         <span class="day-number">${date.getDate()}</span>
+        <span class="chinese-day-label ${chineseLabel.type}">${escapeHtml(chineseLabel.text)}</span>
         ${holidayBadge}
       </span>
-      <span class="chinese-day-label ${chineseLabel.type}">${escapeHtml(chineseLabel.text)}</span>
-      <span class="event-dots">${dots}${more}</span>
-      ${weekPreviews}
+      ${
+        isWeekView
+          ? renderWeekEvents(events, conflictIds, key)
+          : renderMonthEvents(events, conflictIds)
+      }
     </button>
   `;
 }
@@ -505,7 +633,7 @@ function bindWeekDrag() {
       let targetStartTime = null;
       if (!source.allDay) {
         const rect = cell.getBoundingClientRect();
-        const usableTop = rect.top + 76;
+        const usableTop = rect.top + 32;
         const ratio = Math.max(0, Math.min(1, (event.clientY - usableTop) / (rect.bottom - usableTop)));
         const minutes = Math.round((8 * 60 + ratio * 12 * 60) / 30) * 30;
         targetStartTime = PlannerCore.timeFromMinutes(Math.min(minutes, 20 * 60));
@@ -556,15 +684,7 @@ function renderCalendar() {
     : new Date(year, month, 1 - ((first.getDay() + 6) % 7), 12);
   const cellCount = isWeekView ? 7 : 42;
 
-  if (isWeekView) {
-    const gridEnd = addDays(gridStart, 6);
-    $('#monthTitle').textContent = `${gridStart.getMonth() + 1}月${gridStart.getDate()}日 – ${
-      gridEnd.getMonth() + 1
-    }月${gridEnd.getDate()}日`;
-  } else {
-    $('#monthTitle').textContent = `${year}年${month + 1}月`;
-  }
-  $('#todayLabel').textContent = formatTodayLabel();
+  renderCalendarHeading(isWeekView, gridStart, year, month);
   $('#calendarGrid').classList.toggle('week-view', isWeekView);
   $('.month-summary').classList.toggle('hidden', isWeekView);
   $all('#calendarViewControl button').forEach((button) => {
@@ -683,7 +803,7 @@ function renderAgendaItem(record, showDate) {
     >
       <div class="agenda-time">${time}</div>
       <div class="agenda-content">
-        <h3>${escapeHtml(event.title)}</h3>
+        <h3><span>${escapeHtml(event.title)}</span></h3>
         <p>${hasConflict ? '⚠ 时间冲突 · ' : ''}${escapeHtml(
           [event.notes, meta].filter(Boolean).join(' · ')
         )}</p>
@@ -697,7 +817,41 @@ function renderAgendaItem(record, showDate) {
   `;
 }
 
+// 选中日期之后一周内的安排，接在当天列表后面
+function renderUpcoming() {
+  const selected = parseDate(state.selectedDate);
+  const records = [];
+  for (let offset = 1; offset <= UPCOMING_DAYS; offset += 1) {
+    records.push(...occurrencesForDate(dateKey(addDays(selected, offset))));
+  }
+  if (!records.length) return '';
+  const items = records
+    .slice(0, UPCOMING_LIMIT)
+    .map(
+      ({ event, occurrenceDate }) => `
+        <button
+          type="button"
+          class="upcoming-item ${event.completed ? 'completed' : ''}"
+          data-upcoming-id="${escapeHtml(event.id)}"
+          data-occurrence-date="${occurrenceDate}"
+          style="--event-color:${escapeHtml(eventColor(event))}"
+        >
+          <span class="upcoming-day">周${weekdayLong[parseDate(occurrenceDate).getDay()].slice(2)}</span>
+          <span class="upcoming-title"><span>${escapeHtml(event.title)}</span></span>
+          <span class="upcoming-time">${escapeHtml(event.allDay ? '全天' : event.startTime || '')}</span>
+        </button>
+      `
+    )
+    .join('');
+  return `<p class="agenda-section">接下来</p>${items}`;
+}
+
 function bindAgendaItems() {
+  $all('.upcoming-item').forEach((item) => {
+    item.addEventListener('click', () =>
+      openQuickEdit(item.dataset.upcomingId, item.dataset.occurrenceDate)
+    );
+  });
   $all('.agenda-item').forEach((item) => {
     item.addEventListener('click', (event) => {
       if (event.target.closest('.complete-button')) return;
@@ -776,17 +930,17 @@ function renderAgenda() {
     renderSelectedDayDetails(selected, selectedRecords);
   }
 
-  if (!records.length) {
-    $('#agendaList').innerHTML = `
-      <div class="empty-state">
+  const upcoming = !query && state.filter === 'all' ? renderUpcoming() : '';
+  $('#agendaList').innerHTML = records.length
+    ? records.map((record) => renderAgendaItem(record, showDate)).join('') + upcoming
+    : `
+      <div class="empty-state ${upcoming ? 'compact' : ''}">
         <div class="empty-illustration"></div>
         <strong>${escapeHtml(emptyTitle)}</strong>
         <p>${escapeHtml(emptyDescription)}</p>
       </div>
+      ${upcoming}
     `;
-    return;
-  }
-  $('#agendaList').innerHTML = records.map((record) => renderAgendaItem(record, showDate)).join('');
   bindAgendaItems();
 }
 
@@ -919,7 +1073,9 @@ function renderSettings() {
   $all('#themeControl button').forEach((button) => {
     button.classList.toggle('active', button.dataset.theme === state.settings.theme);
   });
-  const opacity = Math.round((state.settings.opacity || 0.96) * 100);
+  $('#windowModeHint').textContent = windowModeHints[state.settings.windowMode] || '';
+  $('#minimizeButton').classList.toggle('hidden', state.settings.windowMode === 'desktop');
+  const opacity = Math.round(backgroundOpacity() * 100);
   $('#opacityRange').value = opacity;
   $('#opacityValue').textContent = `${opacity}%`;
   $('#clickThroughToggle').checked = Boolean(state.settings.clickThrough);
@@ -936,6 +1092,7 @@ function renderSettings() {
 
 function render() {
   applyTheme();
+  applyAgendaLayout();
   renderWeekHeader();
   renderCalendarControls();
   renderCalendar();
@@ -1497,8 +1654,13 @@ function bindEvents() {
           ? parseDate(state.selectedDate)
           : startOfMonth(parseDate(state.selectedDate));
       render();
+      if (state.settings.calendarView !== state.viewMode) {
+        updateSettings({ calendarView: state.viewMode });
+      }
     });
   });
+  $('#agendaToggle').addEventListener('click', toggleAgenda);
+  bindAgendaResizer();
   $('#addEventButton').addEventListener('click', () => openEventDialog());
   $('#quickAddButton').addEventListener('click', openQuickAdd);
   $('#quickAddForm').addEventListener('submit', submitQuickAdd);
@@ -1581,9 +1743,10 @@ function bindEvents() {
   });
   $('#opacityRange').addEventListener('input', (event) => {
     $('#opacityValue').textContent = `${event.target.value}%`;
+    applySheetOpacity(Number(event.target.value) / 100);
   });
   $('#opacityRange').addEventListener('change', (event) =>
-    updateSettings({ opacity: Number(event.target.value) / 100 })
+    updateSettings({ backgroundOpacity: Number(event.target.value) / 100 })
   );
   $('#clickThroughToggle').addEventListener('change', (event) =>
     updateSettings({ clickThrough: event.target.checked })
@@ -1653,8 +1816,12 @@ function bindEvents() {
     }
     if (event.ctrlKey && event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      $('#searchInput').focus();
-      $('#searchInput').select();
+      const focusSearch = () => {
+        $('#searchInput').focus();
+        $('#searchInput').select();
+      };
+      if (state.settings.agendaCollapsed) toggleAgenda().then(focusSearch);
+      else focusSearch();
     }
     if (event.key === 'Escape') {
       if (state.scopeResolver) {
@@ -1698,6 +1865,11 @@ async function init() {
       { id: 'personal', name: '个人', color: '#6750e8', visible: true }
     ];
     state.settings = initial.settings || {};
+    state.material = initial.material || 'none';
+    if (state.settings.calendarView === 'week') {
+      state.viewMode = 'week';
+      state.viewDate = parseDate(state.selectedDate);
+    }
     render();
   } catch (error) {
     showToast(error.message || '无法加载本地数据', '启动失败');

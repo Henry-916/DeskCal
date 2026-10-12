@@ -20,7 +20,7 @@ const DEFAULT_DATA = {
   settings: {
     theme: 'system',
     windowMode: 'desktop',
-    opacity: 0.96,
+    backgroundOpacity: 0.3,
     clickThrough: false,
     startOnBoot: false,
     showCompleted: true,
@@ -32,7 +32,10 @@ const DEFAULT_DATA = {
     showSolarTerms: true,
     showOfficialHolidays: true,
     showHolidayBadges: true,
-    highlightWeekends: true
+    highlightWeekends: true,
+    calendarView: 'month',
+    agendaWidth: null,
+    agendaCollapsed: false
   },
   window: {
     width: 920,

@@ -8,16 +8,19 @@ const {
   nativeImage,
   dialog,
   screen,
-  powerMonitor
+  powerMonitor,
+  nativeTheme
 } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const CalendarCore = require('./calendar-core');
 const DataModel = require('./data-model');
 const DataStore = require('./data-store');
+const DesktopPin = require('./desktop-pin');
 const { DEFAULT_DATA } = DataModel;
 
 let mainWindow = null;
+let desktopPin = null;
 let tray = null;
 let appData = structuredClone(DEFAULT_DATA);
 let dataPath = '';
@@ -27,6 +30,12 @@ let loadResult = null;
 let boundsSaveTimer = null;
 let pendingBounds = false;
 const activeNotifications = new Set();
+
+// 系统毛玻璃（窗口背后的模糊）需要 Windows 11 22H2（22621）及以上
+const windowMaterial =
+  process.platform === 'win32' && Number(process.getSystemVersion().split('.')[2]) >= 22621
+    ? 'acrylic'
+    : 'none';
 
 const appIconPath = path.join(__dirname, '..', 'assets', 'deskcal-icon.png');
 const iconSvg = `
@@ -120,12 +129,17 @@ function ensureVisibleBounds(saved) {
 
 function applyWindowSettings() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const { windowMode, opacity, clickThrough } = appData.settings;
-  mainWindow.setOpacity(Math.min(1, Math.max(0.55, Number(opacity) || 0.96)));
-  mainWindow.setAlwaysOnTop(windowMode === 'top', 'floating');
+  const { windowMode, clickThrough, theme } = appData.settings;
+  const pinToDesktop = windowMode === 'desktop' && Boolean(desktopPin);
+  if (!pinToDesktop) desktopPin?.disable();
+  // 毛玻璃的深浅跟随这里，页面里的 prefers-color-scheme 也一样
+  nativeTheme.themeSource = theme === 'light' || theme === 'dark' ? theme : 'system';
+  if (!desktopPin?.enabled) mainWindow.setAlwaysOnTop(windowMode === 'top', 'floating');
   mainWindow.setSkipTaskbar(windowMode !== 'floating');
+  mainWindow.setMinimizable(windowMode !== 'desktop');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   mainWindow.setIgnoreMouseEvents(Boolean(clickThrough), { forward: true });
+  if (pinToDesktop) desktopPin.enable();
 }
 
 function createWindow() {
@@ -137,6 +151,7 @@ function createWindow() {
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
+    ...(windowMaterial === 'acrylic' ? { backgroundMaterial: 'acrylic' } : {}),
     show: false,
     resizable: true,
     maximizable: false,
@@ -152,6 +167,7 @@ function createWindow() {
     }
   });
 
+  desktopPin = DesktopPin.create(mainWindow);
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   applyWindowSettings();
 
@@ -184,6 +200,11 @@ function createWindow() {
     }
   });
 
+  mainWindow.on('closed', () => {
+    desktopPin?.disable();
+    desktopPin = null;
+  });
+
   mainWindow.on('resize', scheduleSaveBounds);
   mainWindow.on('move', scheduleSaveBounds);
 }
@@ -191,6 +212,10 @@ function createWindow() {
 function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   applyWindowSettings();
+  if (desktopPin?.enabled && !appData.settings.clickThrough) {
+    desktopPin.peek();
+    return;
+  }
   mainWindow.show();
   if (!appData.settings.clickThrough) mainWindow.focus();
 }
@@ -259,7 +284,8 @@ function createTray() {
   tray = new Tray(createAppIcon().resize({ width: 20, height: 20 }));
   tray.setToolTip('DeskCal 桌面日历');
   tray.on('click', () => {
-    if (mainWindow?.isVisible()) mainWindow.hide();
+    if (desktopPin?.enabled && mainWindow?.isVisible()) desktopPin.togglePeek();
+    else if (mainWindow?.isVisible()) mainWindow.hide();
     else showWindow();
     updateTrayMenu();
   });
@@ -346,6 +372,7 @@ function registerIpc() {
     events: appData.events,
     calendars: appData.calendars,
     settings: appData.settings,
+    material: windowMaterial,
     platform: process.platform,
     version: app.getVersion(),
     dataPath
@@ -497,6 +524,7 @@ if (!gotTheLock) {
   app.on('before-quit', () => {
     isQuitting = true;
     if (reminderTimer) clearInterval(reminderTimer);
+    desktopPin?.disable();
     flushBounds();
   });
 }

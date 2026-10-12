@@ -17,12 +17,15 @@
   <body>
     <div class="app-shell">
       <header class="titlebar">
-        <div class="brand">
+        <div class="brand reveal">
           <img class="brand-mark" src="../../assets/deskcal-icon.png" alt="" aria-hidden="true" />
           <span>DeskCal</span>
         </div>
         <div class="drag-region"></div>
-        <div class="window-actions">
+        <div class="window-actions reveal">
+          <button id="agendaToggle" class="icon-button" title="收起日程栏" aria-label="收起日程栏" aria-expanded="true">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg>
+          </button>
           <button id="settingsButton" class="icon-button" title="设置" aria-label="设置">
             <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.04V3h4v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>
           </button>
@@ -38,11 +41,11 @@
       <main class="workspace">
         <section class="calendar-panel">
           <div class="calendar-toolbar">
-            <div>
-              <p class="eyebrow" id="todayLabel">今天</p>
-              <h1 id="monthTitle">2026年7月</h1>
+            <div class="calendar-heading">
+              <h1 id="monthTitle">7月</h1>
+              <p class="calendar-subtitle" id="todayLabel"></p>
             </div>
-            <div class="calendar-toolbar-actions">
+            <div class="calendar-toolbar-actions reveal">
               <div id="calendarViewControl" class="mini-segmented" aria-label="日历视图">
                 <button type="button" class="active" data-view="month">月</button>
                 <button type="button" data-view="week">周</button>
@@ -62,37 +65,29 @@
           <div class="week-header" id="weekHeader"></div>
           <div class="calendar-grid" id="calendarGrid" role="grid"></div>
 
-          <div class="month-summary">
-            <div>
-              <strong id="monthEventCount">0</strong>
-              <span>本月日程</span>
-            </div>
-            <div>
-              <strong id="monthCompletedCount">0</strong>
-              <span>已经完成</span>
-            </div>
-            <div class="summary-accent">
-              <strong id="monthPendingCount">0</strong>
-              <span>等待处理</span>
-            </div>
-          </div>
+          <p class="month-summary">
+            本月 <strong id="monthEventCount">0</strong> 项日程 · 已完成
+            <strong id="monthCompletedCount">0</strong> · 待处理
+            <strong id="monthPendingCount">0</strong>
+          </p>
         </section>
+
+        <div id="agendaResizer" class="agenda-resizer" title="拖动调整日程栏宽度，双击收起或展开"></div>
 
         <aside class="agenda-panel">
           <div class="agenda-header">
             <div>
-              <p class="eyebrow">我的日程</p>
               <h2 id="selectedDateTitle">7月29日</h2>
               <p id="selectedDateMeta" class="muted">星期三 · 0项安排</p>
               <p id="selectedLunarMeta" class="lunar-meta">农历六月十六</p>
               <div id="selectedDayTags" class="selected-day-tags"></div>
             </div>
-            <button id="addEventButton" class="primary-icon-button" aria-label="添加日程">
+            <button id="addEventButton" class="primary-icon-button" title="添加日程（Ctrl+N）" aria-label="添加日程">
               <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
 
-          <div class="agenda-tools">
+          <div class="agenda-tools quiet">
             <label class="search-box">
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
               <input id="searchInput" type="search" placeholder="搜索全部日程" autocomplete="off" />
@@ -102,14 +97,14 @@
             </button>
           </div>
 
-          <div class="agenda-filters" role="tablist">
+          <div class="agenda-filters quiet" role="tablist">
             <button class="filter-pill active" data-filter="all">全部</button>
             <button class="filter-pill" data-filter="pending">待办</button>
             <button class="filter-pill" data-filter="completed">已完成</button>
             <button class="filter-pill" data-filter="upcoming">七天</button>
           </div>
 
-          <div id="calendarStrip" class="calendar-strip" aria-label="日历筛选"></div>
+          <div id="calendarStrip" class="calendar-strip quiet" aria-label="日历筛选"></div>
 
           <div id="agendaList" class="agenda-list"></div>
         </aside>
@@ -266,17 +261,18 @@
             <button type="button" data-mode="floating">普通窗口</button>
             <button type="button" data-mode="top">始终置顶</button>
           </div>
+          <p id="windowModeHint" class="settings-hint"></p>
         </div>
 
         <div class="settings-section">
           <div class="setting-row">
             <div>
-              <strong>窗口透明度</strong>
-              <p>让组件自然融入桌面背景</p>
+              <strong>背景不透明度</strong>
+              <p>调低可以透出更多壁纸，文字不受影响</p>
             </div>
             <div class="range-control">
-              <input id="opacityRange" type="range" min="55" max="100" step="1" />
-              <span id="opacityValue">96%</span>
+              <input id="opacityRange" type="range" min="0" max="100" step="1" />
+              <span id="opacityValue">30%</span>
             </div>
           </div>
           <label class="setting-row">

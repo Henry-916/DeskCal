@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { app, BrowserWindow } = require('electron');
+const DesktopPin = require('../src/desktop-pin');
 
 async function run() {
   const window = new BrowserWindow({
@@ -80,6 +81,16 @@ async function run() {
       await wait(30);
       const weekViewCells = document.querySelectorAll('.day-cell').length;
       const weekViewIsActive = document.querySelector('#calendarGrid').classList.contains('week-view');
+      const weekCardText = document.querySelector('[data-drag-event-id]')?.textContent || '';
+      const smallestText = Math.min(
+        ...[...document.querySelectorAll('.app-shell *')]
+          .filter(
+            (element) =>
+              element.offsetParent &&
+              [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim())
+          )
+          .map((element) => parseFloat(getComputedStyle(element).fontSize))
+      );
 
       const dragPreview = document.querySelector('[data-drag-event-id]');
       const dragSourceDate = dragPreview?.dataset.occurrenceDate;
@@ -126,6 +137,15 @@ async function run() {
       const quickPreview = document.querySelector('#quickAddPreview').textContent;
       quickAddDialog.close();
 
+      document.querySelector('#agendaToggle').click();
+      await wait(50);
+      const agendaCollapsed =
+        document.querySelector('.workspace').classList.contains('agenda-collapsed') &&
+        document.querySelector('.agenda-panel').offsetWidth === 0;
+      document.querySelector('#agendaToggle').click();
+      await wait(50);
+      const agendaRestored = document.querySelector('.agenda-panel').offsetWidth >= 240;
+
       return {
         ...initial,
         dialogOpened: dialogWasOpened,
@@ -138,10 +158,14 @@ async function run() {
         searchResultCount,
         weekViewCells,
         weekViewIsActive,
+        weekCardText,
+        smallestText,
         recurrenceScopeOpened,
         dragMovedOccurrence,
         restoredMonthCells,
         quickPreview,
+        agendaCollapsed,
+        agendaRestored,
         runtimeError: window.__deskcalSmokeError || null
       };
     })()
@@ -168,11 +192,15 @@ async function run() {
   assert.equal(result.searchResultCount, 1, 'search should find the newly created event');
   assert.equal(result.weekViewCells, 7, 'week view should render seven day cells');
   assert.equal(result.weekViewIsActive, true, 'week view should expose its active layout');
+  assert.match(result.weekCardText, /Electron 冒烟测试/, '周历的日程块应直接写出标题');
+  assert.ok(result.smallestText >= 12, `界面文字不应小于 12px，实际最小 ${result.smallestText}px`);
   assert.equal(result.recurrenceScopeOpened, true, 'dragging a recurring event should ask for scope');
   assert.equal(result.dragMovedOccurrence, true, 'week drag should move the selected occurrence');
   assert.equal(result.restoredMonthCells, 42, 'month view should restore the 42-cell grid');
   assert.match(result.quickPreview, /15:00/, 'quick input should preview the parsed time');
   assert.match(result.quickPreview, /30/, 'quick input should preview the reminder');
+  assert.equal(result.agendaCollapsed, true, '收起按钮应隐藏日程栏并让日历占满宽度');
+  assert.equal(result.agendaRestored, true, '再次点击应恢复日程栏');
   assert.equal(result.runtimeError, null, 'renderer should not report runtime errors');
 
   console.log('Electron renderer smoke test passed:', JSON.stringify(result));
@@ -634,6 +662,17 @@ async function run() {
   assert.equal(r5Result.scenario2.eventsCount, 1, '场景2：搜索结果中点击后 state.events 仍应只有 1 条日程');
 
   console.log('R5 regression smoke test passed:', JSON.stringify(r5Result));
+
+  // 桌面组件模式：系统接口可以加载，启用和停用不会抛错
+  if (process.platform === 'win32') {
+    const pin = DesktopPin.create(window);
+    assert.ok(pin, '桌面嵌入模块应能在 Windows 上加载');
+    pin.enable();
+    assert.equal(pin.enabled, true, '启用后应处于桌面组件状态');
+    pin.disable();
+    assert.equal(pin.enabled, false, '停用后应退出桌面组件状态');
+    console.log('Desktop pin smoke test passed');
+  }
   window.destroy();
 }
 
