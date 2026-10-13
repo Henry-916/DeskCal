@@ -17,8 +17,6 @@ contextBridge.exposeInMainWorld('deskcal', {
   openReleasePage: () => ipcRenderer.invoke('update:open-releases'),
   onUpdateStatus: (callback) =>
     ipcRenderer.on('update:status', (_event, value) => callback(value)),
-  onCreateRequest: (callback) =>
-    ipcRenderer.on('event:create-request', () => callback()),
   onOpenSettings: (callback) =>
     ipcRenderer.on('settings:open-request', () => callback()),
   onSettingsChanged: (callback) =>

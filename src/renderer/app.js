@@ -55,7 +55,6 @@ if (!window.deskcal) {
     installUpdate: async () => {},
     openReleasePage: async () => {},
     onUpdateStatus: () => {},
-    onCreateRequest: () => {},
     onOpenSettings: () => {},
     onSettingsChanged: () => {},
     onReminder: () => {},
@@ -1941,9 +1940,6 @@ function bindEvents() {
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
 
   // 托盘菜单触发时如果已有弹窗开着（比如正在填表单），就不要再打开新的把它冲掉
-  window.deskcal.onCreateRequest(() => {
-    if (!$('dialog[open]')) openEventDialog();
-  });
   window.deskcal.onOpenSettings(() => {
     if (!$('dialog[open]')) openSettings();
   });

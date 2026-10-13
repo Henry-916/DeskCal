@@ -76,6 +76,17 @@ function currentCalendarWidth() {
   return mainWindow.getBounds().width - (agendaOpen() ? agendaWidth() : 0);
 }
 
+// 展开、收起日程栏，或者定下它的新宽度。日历的宽度保持不变，窗口跟着变宽变窄
+function setAgenda(next) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const calendar = currentCalendarWidth();
+  if (typeof next?.collapsed === 'boolean') appData.settings.agendaCollapsed = next.collapsed;
+  if (Number(next?.width) > 0) appData.settings.agendaWidth = Math.round(Number(next.width));
+  appData.settings.agendaWidth = agendaWidth();
+  resizeWindow(calendar);
+  persistData();
+}
+
 function windowMaterial() {
   return acrylicSupported && appData.settings.frostedGlass !== false ? 'acrylic' : 'none';
 }
@@ -298,31 +309,50 @@ function showWindow() {
   if (!clickThroughActive()) mainWindow.focus();
 }
 
+// 托盘菜单里改了设置：存盘、应用到窗口，并让页面跟着更新
+function applyTraySetting(change) {
+  change();
+  persistData();
+  applyWindowSettings();
+  mainWindow?.webContents.send('settings:changed', appData.settings);
+  updateTrayMenu();
+}
+
+// 托盘菜单只放窗口点不到时也得能用的东西（开着鼠标穿透时窗口上什么都点不了）。
+// 添加日程、检查更新、切换深浅色都在界面里做
 function updateTrayMenu() {
   if (!tray) return;
   const visible = mainWindow && mainWindow.isVisible();
+  const windowModes = [
+    ['desktop', '桌面组件'],
+    ['floating', '普通窗口'],
+    ['top', '始终置顶']
+  ];
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: visible ? '隐藏桌面日历' : '显示桌面日历',
+        label: visible ? '隐藏到托盘' : '显示日历',
         click: () => (visible ? mainWindow.hide() : showWindow())
-      },
-      {
-        label: '添加日程',
-        click: () => {
-          showWindow();
-          mainWindow.webContents.send('event:create-request');
-        }
       },
       { type: 'separator' },
       {
-        label: '始终置顶',
+        label: '显示方式',
+        submenu: windowModes.map(([mode, label]) => ({
+          label,
+          type: 'radio',
+          checked: (appData.settings.windowMode || 'desktop') === mode,
+          click: () =>
+            applyTraySetting(() => {
+              appData.settings.windowMode = mode;
+            })
+        }))
+      },
+      {
+        label: '显示日程栏',
         type: 'checkbox',
-        checked: appData.settings.windowMode === 'top',
+        checked: agendaOpen(),
         click: (item) => {
-          appData.settings.windowMode = item.checked ? 'top' : 'desktop';
-          persistData();
-          applyWindowSettings();
+          setAgenda({ collapsed: !item.checked });
           mainWindow?.webContents.send('settings:changed', appData.settings);
           updateTrayMenu();
         }
@@ -330,14 +360,11 @@ function updateTrayMenu() {
       {
         label: '鼠标穿透',
         type: 'checkbox',
-        checked: appData.settings.clickThrough,
-        click: (item) => {
-          appData.settings.clickThrough = item.checked;
-          persistData();
-          applyWindowSettings();
-          mainWindow?.webContents.send('settings:changed', appData.settings);
-          updateTrayMenu();
-        }
+        checked: Boolean(appData.settings.clickThrough),
+        click: (item) =>
+          applyTraySetting(() => {
+            appData.settings.clickThrough = item.checked;
+          })
       },
       { type: 'separator' },
       {
@@ -347,16 +374,9 @@ function updateTrayMenu() {
           mainWindow.webContents.send('settings:open-request');
         }
       },
+      { type: 'separator' },
       {
-        label: '检查更新',
-        click: () => {
-          showWindow();
-          mainWindow.webContents.send('settings:open-request');
-          Updater.check('manual');
-        }
-      },
-      {
-        label: '退出',
+        label: '退出 DeskCal',
         click: () => {
           isQuitting = true;
           app.quit();
@@ -488,15 +508,9 @@ function registerIpc() {
     return appData.settings;
   });
 
-  // 展开、收起日程栏，或者定下它的新宽度。日历的宽度保持不变，窗口跟着变宽变窄
   ipcMain.handle('agenda:set', (_event, next) => {
-    if (!mainWindow || mainWindow.isDestroyed()) return appData.settings;
-    const calendar = currentCalendarWidth();
-    if (typeof next?.collapsed === 'boolean') appData.settings.agendaCollapsed = next.collapsed;
-    if (Number(next?.width) > 0) appData.settings.agendaWidth = Math.round(Number(next.width));
-    appData.settings.agendaWidth = agendaWidth();
-    resizeWindow(calendar);
-    persistData();
+    setAgenda(next);
+    updateTrayMenu();
     return appData.settings;
   });
 
