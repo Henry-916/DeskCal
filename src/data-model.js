@@ -36,11 +36,11 @@ const DEFAULT_DATA = {
     highlightWeekends: true,
     calendarView: 'month',
     agendaWidth: null,
-    agendaCollapsed: false
+    agendaCollapsed: true
   },
   window: {
-    width: 920,
-    height: 650,
+    width: 810,
+    height: 600,
     x: null,
     y: null
   }

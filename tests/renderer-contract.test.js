@@ -26,17 +26,14 @@ test('页面先加载共享日期逻辑再加载应用脚本', () => {
   const lunarRuntimePosition = html.indexOf('lunar-javascript/lunar.js');
   const chineseCalendarPosition = html.indexOf('../chinese-calendar.js');
   const corePosition = html.indexOf('../calendar-core.js');
-  const quickInputPosition = html.indexOf('../quick-input.js');
   const plannerCorePosition = html.indexOf('../planner-core.js');
   const appPosition = html.indexOf('./app.js');
   assert.ok(lunarRuntimePosition >= 0);
   assert.ok(chineseCalendarPosition > lunarRuntimePosition);
   assert.ok(corePosition >= 0);
-  assert.ok(quickInputPosition >= 0);
   assert.ok(plannerCorePosition >= 0);
   assert.ok(appPosition > chineseCalendarPosition);
   assert.ok(appPosition > corePosition);
-  assert.ok(appPosition > quickInputPosition);
   assert.ok(appPosition > plannerCorePosition);
 });
 

@@ -19,70 +19,81 @@ async function run() {
     (async () => {
       const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
       await wait(50);
+      await document.fonts.ready;
 
       const initial = {
-        brandIconLoaded:
-          document.querySelector('.brand-mark')?.complete &&
-          document.querySelector('.brand-mark')?.naturalWidth > 0,
+        fontsLoaded: ['Noto Serif SC Variable', 'Bodoni Moda Variable'].every((family) =>
+          [...document.fonts].some((face) => face.family === family && face.status === 'loaded')
+        ),
         dayCells: document.querySelectorAll('.day-cell').length,
-        weekLabels: document.querySelectorAll('#weekHeader span').length,
-        weekendHeaders: document.querySelectorAll('#weekHeader .weekend').length,
+        weekLabels: document.querySelectorAll('.mhead').length,
         weekendCells: document.querySelectorAll('.day-cell.weekend').length,
-        lunarLabels: [...document.querySelectorAll('.chinese-day-label')].filter(
+        lunarLabels: [...document.querySelectorAll('.day-cell .lunar')].filter(
           (element) => element.textContent.trim()
         ).length,
         lunarMeta: document.querySelector('#selectedLunarMeta')?.textContent,
-        chineseSettingToggles: document.querySelectorAll(
-          '#lunarToggle, #traditionalFestivalToggle, #solarTermToggle, #officialHolidayToggle, #holidayBadgeToggle, #weekendHighlightToggle'
-        ).length,
-        emptyState: document.querySelector('.empty-state strong')?.textContent
+        settingToggles: document.querySelectorAll('[data-setting][role="switch"]').length,
+        emptyState: document.querySelector('.empty-state b')?.textContent,
+        agendaStartsCollapsed: document.querySelector('.side').offsetWidth === 0
       };
 
       document.querySelector('#addEventButton').click();
       const dialog = document.querySelector('#eventDialog');
       const dialogWasOpened = dialog.open;
+      const defaultReminders = pickedReminders();
       const title = document.querySelector('#eventTitle');
       const location = document.querySelector('#eventLocation');
       const repeat = document.querySelector('#eventRepeat');
       const interval = document.querySelector('#eventRepeatInterval');
       const until = document.querySelector('#eventRepeatUntil');
-      const reminders = [...document.querySelectorAll('#eventReminderOptions input')];
 
       title.value = 'Electron 冒烟测试';
       location.value = '测试会议室';
       repeat.value = 'weekly';
       repeat.dispatchEvent(new Event('change', { bubbles: true }));
+      const recurrenceFieldsVisible =
+        !document.querySelector('#repeatIntervalField').closest('.hidden');
       interval.value = '2';
       const untilDate = new Date();
       untilDate.setDate(untilDate.getDate() + 90);
       const pad = (value) => String(value).padStart(2, '0');
       until.value = \`\${untilDate.getFullYear()}-\${pad(untilDate.getMonth() + 1)}-\${pad(untilDate.getDate())}\`;
-      reminders.forEach((input) => {
-        input.checked = input.value === '10' || input.value === '30';
-      });
+      setReminderOptions([10, 30]);
+      const reminderSummary = document.querySelector('#eventReminderSelect').selectedOptions[0].textContent;
 
       document.querySelector('#eventForm').requestSubmit();
       await wait(100);
 
+      const savedEvent = state.events.find((item) => item.title === 'Electron 冒烟测试');
+      // 日程栏默认收着：点今天的日期数字把它展开
+      document.querySelector('.day-cell.sel .num').click();
+      await wait(250);
+      const agendaOpenedByDateClick = document.querySelector('.side').offsetWidth >= 240;
       const agendaItemsAfterCreate = document.querySelectorAll('.agenda-item').length;
       const agendaTextAfterCreate = document.querySelector('#agendaList').textContent;
-      document.querySelector('.agenda-item').click();
+      document.querySelector('.agenda-item strong').click();
       await wait(30);
-      const quickEditOpened = document.querySelector('#quickEditDialog').open;
-      document.querySelector('#quickEditDialog').close();
+      const editOpenedFromAgenda =
+        document.querySelector('#eventDialog').open &&
+        document.querySelector('#eventDialogTitle').textContent === '编辑日程';
+      const scopeFieldShown = !document.querySelector('#eventEditScopeField').classList.contains('hidden');
+      document.querySelector('#eventDialog').close();
 
       document.querySelector('#searchInput').value = 'Electron';
       document.querySelector('#searchInput').dispatchEvent(new Event('input', { bubbles: true }));
       await wait(30);
       const searchResultCount = document.querySelectorAll('.agenda-item').length;
+      document.querySelector('#searchInput').value = '';
+      document.querySelector('#searchInput').dispatchEvent(new Event('input', { bubbles: true }));
 
       document.querySelector('#calendarViewControl [data-view="week"]').click();
       await wait(30);
       const weekViewCells = document.querySelectorAll('.day-cell').length;
       const weekViewIsActive = document.querySelector('#calendarGrid').classList.contains('week-view');
-      const weekCardText = document.querySelector('[data-drag-event-id]')?.textContent || '';
+      const weekCardText = document.querySelector('.ticket')?.textContent || '';
+      const summaryText = document.querySelector('#summary').textContent.replace(/\\s+/g, ' ').trim();
       const smallestText = Math.min(
-        ...[...document.querySelectorAll('.app-shell *')]
+        ...[...document.querySelectorAll('.win *')]
           .filter(
             (element) =>
               element.offsetParent &&
@@ -91,9 +102,25 @@ async function run() {
           .map((element) => parseFloat(getComputedStyle(element).fontSize))
       );
 
-      const dragPreview = document.querySelector('[data-drag-event-id]');
+      // 周历票根区的空白：只选中那一天，不新建也不动日程栏；鼠标移上去才有的“＋ 新日程”才是新建
+      const otherColumn = [...document.querySelectorAll('.col')].find((col) => !col.classList.contains('sel'));
+      otherColumn.querySelector('.evs').click();
+      await wait(250);
+      const blankClickSelects =
+        state.selectedDate === otherColumn.dataset.date &&
+        !document.querySelector('#eventDialog').open &&
+        document.querySelector('.side').offsetWidth >= 240;
+      document.querySelector('.col.sel .ghost-add').click();
+      await wait(30);
+      const ghostAddOpensNewForm =
+        document.querySelector('#eventDialog').open &&
+        document.querySelector('#eventDialogTitle').textContent === '添加新日程' &&
+        document.querySelector('#eventDate').value === state.selectedDate;
+      document.querySelector('#eventDialog').close();
+
+      const dragPreview = document.querySelector('.ticket');
       const dragSourceDate = dragPreview?.dataset.occurrenceDate;
-      const dragTarget = [...document.querySelectorAll('.day-cell.week-cell')].find(
+      const dragTarget = [...document.querySelectorAll('.col')].find(
         (cell) => cell.dataset.date !== dragSourceDate
       );
       let recurrenceScopeOpened = false;
@@ -103,14 +130,8 @@ async function run() {
         dragPreview.dispatchEvent(
           new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer })
         );
-        const rect = dragTarget.getBoundingClientRect();
         dragTarget.dispatchEvent(
-          new DragEvent('drop', {
-            bubbles: true,
-            cancelable: true,
-            dataTransfer: transfer,
-            clientY: rect.top + 130
-          })
+          new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer })
         );
         await wait(30);
         recurrenceScopeOpened = document.querySelector('#recurrenceScopeDialog').open;
@@ -118,23 +139,44 @@ async function run() {
         await wait(100);
         dragMovedOccurrence = Boolean(
           document.querySelector(
-            \`[data-occurrence-date="\${dragTarget.dataset.date}"][data-drag-event-id]\`
+            \`.ticket[data-occurrence-date="\${dragTarget.dataset.date}"]\`
           )
         );
       }
 
+      // 再点一次已选中的那天：收起日程栏；双击窗口右边缘：再展开；双击撕口线：再收起
+      document.querySelector('.col.sel .num').click();
+      await wait(250);
+      const agendaClosedByDateClick = document.querySelector('.side').offsetWidth === 0;
+      const doubleClick = (element) => {
+        element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+        element.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }));
+      };
+      doubleClick(document.querySelector('#edgeGrip'));
+      await wait(250);
+      const agendaOpenedByEdge = document.querySelector('.side').offsetWidth >= 240;
+      doubleClick(document.querySelector('#tearLine'));
+      await wait(250);
+      const agendaClosedByTear = document.querySelector('.side').offsetWidth === 0;
+
       document.querySelector('#calendarViewControl [data-view="month"]').click();
       await wait(30);
       const restoredMonthCells = document.querySelectorAll('.day-cell').length;
+      const monthMiniText = document.querySelector('.mini')?.textContent || '';
 
-      document.querySelector('#quickAddButton').click();
-      const quickAddDialog = document.querySelector('#quickAddDialog');
-      const quickInput = document.querySelector('#quickAddInput');
-      quickInput.value = '\\u660e\\u5929\\u4e0b\\u53483\\u70b9\\u5f00\\u9879\\u76ee\\u4f1a\\uff0c\\u63d0\\u524d30\\u5206\\u949f\\u63d0\\u9192';
-      quickInput.dispatchEvent(new Event('input', { bubbles: true }));
-      await wait(30);
-      const quickPreview = document.querySelector('#quickAddPreview').textContent;
-      quickAddDialog.close();
+      // 深浅色按钮：点一下换到另一种，再点一下换回来
+      const waitForMode = async (previous) => {
+        for (let attempt = 0; attempt < 80 && document.documentElement.dataset.mode === previous; attempt += 1) {
+          await wait(50);
+        }
+        return document.documentElement.dataset.mode;
+      };
+      const modeBefore = document.documentElement.dataset.mode;
+      document.querySelector('#themeButton').click();
+      const modeAfter = await waitForMode(modeBefore);
+      const themeSettingAfter = state.settings.theme;
+      document.querySelector('#themeButton').click();
+      const modeRestored = await waitForMode(modeAfter);
 
       const opacityRange = document.querySelector('#opacityRange');
       opacityRange.value = '0';
@@ -155,32 +197,38 @@ async function run() {
         (dialog) => getComputedStyle(dialog).webkitAppRegion === 'no-drag'
       );
 
-      document.querySelector('#agendaToggle').click();
-      await wait(50);
-      const agendaCollapsed =
-        document.querySelector('.workspace').classList.contains('agenda-collapsed') &&
-        document.querySelector('.agenda-panel').offsetWidth === 0;
-      document.querySelector('#agendaToggle').click();
-      await wait(50);
-      const agendaRestored = document.querySelector('.agenda-panel').offsetWidth >= 240;
-
       return {
         ...initial,
         dialogOpened: dialogWasOpened,
-        recurrenceFieldsVisible:
-          !document.querySelector('#repeatIntervalField').classList.contains('hidden'),
+        defaultReminders,
+        recurrenceFieldsVisible,
+        reminderSummary,
+        savedReminders: savedEvent?.reminders,
+        savedColor: savedEvent ? eventColor(savedEvent) : null,
+        agendaOpenedByDateClick,
         agendaItems: agendaItemsAfterCreate,
         agendaText: agendaTextAfterCreate,
-        quickEditOpened,
+        editOpenedFromAgenda,
+        scopeFieldShown,
         searchResultCount,
         weekViewCells,
         weekViewIsActive,
         weekCardText,
+        summaryText,
         smallestText,
+        blankClickSelects,
+        ghostAddOpensNewForm,
         recurrenceScopeOpened,
         dragMovedOccurrence,
+        agendaClosedByDateClick,
+        agendaOpenedByEdge,
+        agendaClosedByTear,
         restoredMonthCells,
-        quickPreview,
+        monthMiniText,
+        modeBefore,
+        modeAfter,
+        themeSettingAfter,
+        modeRestored,
         clearestSheetAlpha,
         askOpened,
         askConfirmed,
@@ -188,39 +236,56 @@ async function run() {
         updateStatusText,
         updateActionDisabled,
         dialogsExcludedFromDrag,
-        agendaCollapsed,
-        agendaRestored,
         runtimeError: window.__deskcalSmokeError || null
       };
     })()
   `);
 
-  assert.equal(result.dayCells, 42, '月视图应渲染 42 个日期格');
+  assert.equal(result.fontsLoaded, true, '打包进来的两款字体都应加载成功');
+  assert.ok(
+    result.dayCells >= 28 && result.dayCells % 7 === 0,
+    `月视图应按整周渲染日期格，实际 ${result.dayCells} 个`
+  );
   assert.equal(result.weekLabels, 7, '周标题应渲染 7 天');
-  assert.equal(result.weekendHeaders, 2, '周六周日标题应突出显示');
-  assert.ok(result.weekendCells >= 12, '月视图应突出周末日期格');
-  assert.equal(result.lunarLabels, 42, '每个日期格都应显示农历或节日');
+  assert.ok(result.weekendCells >= 8, '月视图应标出周末日期格');
+  assert.equal(result.lunarLabels, result.dayCells, '每个日期格都应显示农历或节日');
   assert.match(result.lunarMeta, /^农历/);
-  assert.equal(result.chineseSettingToggles, 6, '中国日历设置项应完整渲染');
-  assert.equal(result.emptyState, '今天留有余白');
+  assert.equal(result.settingToggles, 11, '设置里的开关应完整渲染');
+  assert.equal(result.emptyState, '这一天没有安排');
+  assert.equal(result.agendaStartsCollapsed, true, '日程栏默认应收起');
   assert.equal(result.dialogOpened, true, '新建日程弹窗应打开');
+  assert.deepEqual(result.defaultReminders, [0], '新日程默认提醒应为“准时”');
   assert.equal(result.recurrenceFieldsVisible, true, '选择重复后应展示详细规则');
+  assert.match(result.reminderSummary, /提前10分钟、提前30分钟/, '多个提醒应在下拉框里概括显示');
+  assert.deepEqual(result.savedReminders, [10, 30], '保存的提醒应与所选一致');
+  assert.equal(result.savedColor, '#7a77ee', '新日程默认用第一个颜色');
+  assert.equal(result.agendaOpenedByDateClick, true, '点日期数字应展开日程栏');
   assert.equal(result.agendaItems, 1, '保存后应渲染一条日程');
   assert.match(result.agendaText, /Electron 冒烟测试/);
   assert.match(result.agendaText, /测试会议室/);
-
-  assert.equal(result.brandIconLoaded, true, 'brand icon asset should load');
-  assert.equal(result.quickEditOpened, true, 'clicking an agenda item should open quick edit');
+  assert.equal(result.editOpenedFromAgenda, true, '点日程栏里的日程应直接打开编辑表单');
+  assert.equal(result.scopeFieldShown, true, '编辑重复日程时应能选应用范围');
   assert.equal(result.searchResultCount, 1, 'search should find the newly created event');
   assert.equal(result.weekViewCells, 7, 'week view should render seven day cells');
   assert.equal(result.weekViewIsActive, true, 'week view should expose its active layout');
-  assert.match(result.weekCardText, /Electron 冒烟测试/, '周历的日程块应直接写出标题');
+  assert.match(result.weekCardText, /Electron 冒烟测试/, '周历的票根应直接写出标题');
+  assert.match(result.summaryText, /^本周 1 项日程 · 已完成 0.*待处理 1/, '周历底下应统计本周的日程');
   assert.ok(result.smallestText >= 12, `界面文字不应小于 12px，实际最小 ${result.smallestText}px`);
+  assert.equal(result.blankClickSelects, true, '点周历票根区的空白只应选中那一天');
+  assert.equal(result.ghostAddOpensNewForm, true, '点“＋ 新日程”应在那一天新建');
   assert.equal(result.recurrenceScopeOpened, true, 'dragging a recurring event should ask for scope');
   assert.equal(result.dragMovedOccurrence, true, 'week drag should move the selected occurrence');
-  assert.equal(result.restoredMonthCells, 42, 'month view should restore the 42-cell grid');
-  assert.match(result.quickPreview, /15:00/, 'quick input should preview the parsed time');
-  assert.match(result.quickPreview, /30/, 'quick input should preview the reminder');
+  assert.equal(result.agendaClosedByDateClick, true, '再点一次已选中的那天应收起日程栏');
+  assert.equal(result.agendaOpenedByEdge, true, '双击窗口右边缘应展开日程栏');
+  assert.equal(result.agendaClosedByTear, true, '双击撕口线应收起日程栏');
+  assert.ok(
+    result.restoredMonthCells >= 28 && result.restoredMonthCells % 7 === 0,
+    'month view should restore the month grid'
+  );
+  assert.match(result.monthMiniText, /Electron 冒烟测试/, '月历格子里应写出日程标题');
+  assert.notEqual(result.modeAfter, result.modeBefore, '点深浅色按钮应换到另一种配色');
+  assert.equal(result.themeSettingAfter, result.modeAfter, '手动切换后主题设置应固定为所选配色');
+  assert.equal(result.modeRestored, result.modeBefore, '再点一次应换回来');
   assert.equal(result.clearestSheetAlpha, '0', '背景不透明度应能调到完全透明');
   assert.equal(result.askOpened, true, '确认应使用页面内的对话框');
   assert.equal(result.askConfirmed, true, '点确定后确认框应返回 true');
@@ -232,13 +297,11 @@ async function run() {
     true,
     '弹窗必须声明不可拖动，否则盖在拖动区域上的按钮点不动'
   );
-  assert.equal(result.agendaCollapsed, true, '收起按钮应隐藏日程栏并让日历占满宽度');
-  assert.equal(result.agendaRestored, true, '再次点击应恢复日程栏');
   assert.equal(result.runtimeError, null, 'renderer should not report runtime errors');
 
   console.log('Electron renderer smoke test passed:', JSON.stringify(result));
 
-  // 日程颜色：全新加载页面，没选过颜色的日程跟随日历，选过的用自己的颜色
+  // 日程颜色：全新加载页面，新日程默认用第一个颜色，用取色器选过的用自己的颜色；旧数据里没选过颜色的沿用旧默认色
   await window.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'index.html'));
 
   const colorResult = await window.webContents.executeJavaScript(`
@@ -258,20 +321,29 @@ async function run() {
         await wait(100);
         return state.events.find((item) => item.title === title);
       };
-      const plain = await create('跟随日历的日程', null);
+      const plain = await create('默认颜色的日程', null);
       const colored = await create('自定义颜色日程', '#ff0000');
       return {
         calendarColor: state.calendars[0].color,
+        legacyColor: eventColor({ calendarId: 'personal', color: '#123456', customColor: false }),
         plainColor: plain ? eventColor(plain) : null,
         customColor: colored ? eventColor(colored) : null,
-        shownWithCustomColor: [...document.querySelectorAll('.day-chip, .agenda-item')].some(
-          (element) => element.style.getPropertyValue('--event-color') === '#ff0000'
+        customHexShown: (() => {
+          openEventDialog(colored.id, colored.date);
+          const text = document.querySelector('#eventColors .hex').textContent;
+          document.querySelector('#eventDialog').close();
+          return text;
+        })(),
+        shownWithCustomColor: [...document.querySelectorAll('.mini, .ticket')].some(
+          (element) => element.style.getPropertyValue('--c') === '#ff0000'
         )
       };
     })()
   `);
 
-  assert.equal(colorResult.plainColor, colorResult.calendarColor, '没选过颜色的日程应使用默认颜色');
+  assert.equal(colorResult.plainColor, '#7a77ee', '新日程默认用第一个颜色');
+  assert.equal(colorResult.legacyColor, colorResult.calendarColor, '旧数据里没选过颜色的日程沿用旧默认色');
+  assert.equal(colorResult.customHexShown, '#FF0000', '自定义颜色应在表单里显示色号');
   assert.equal(colorResult.customColor, '#ff0000', '选过颜色的日程应使用自己的颜色');
   assert.equal(colorResult.shownWithCustomColor, true, '界面上应显示日程自己的颜色');
 
@@ -455,6 +527,7 @@ async function run() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      state.filter = 'all';
       state.events = [dailySeries];
       render();
 
@@ -478,15 +551,15 @@ async function run() {
       const seriesAfterUndo = state.events.find((e) => e.id === dailySeries.id);
       const undoRestored = state.events.length === 1 && (seriesAfterUndo?.exceptions || []).length === 0;
 
-      // 2. 搜索结果里的重复日程：点 ✓ 应打开快速编辑卡，而不是直接完成系列
+      // 2. 搜索结果里的重复日程：点 ✓ 应打开编辑表单，而不是直接完成系列
       state.events = [structuredClone(dailySeries)];
       state.searchQuery = '每日';
       render();
       const searchItemBtn = document.querySelector(\`.agenda-item[data-id="\${dailySeries.id}"] .complete-button\`);
       searchItemBtn?.click();
       await wait(50);
-      const quickEditOpenedFromSearch = Boolean(document.querySelector('#quickEditDialog')?.open);
-      document.querySelector('#quickEditDialog')?.close();
+      const editOpenedFromSearch = Boolean(document.querySelector('#eventDialog')?.open);
+      document.querySelector('#eventDialog')?.close();
       const seriesStillNotCompletedInSearch = state.events.find((e) => e.id === dailySeries.id)?.completed === false;
 
       // 3. 非重复日程：行为不变（直接翻转 completed）
@@ -517,6 +590,20 @@ async function run() {
       await wait(50);
       const nonrecCompletedFlipped = state.events.find((e) => e.id === nonrecEvent.id)?.completed === true;
 
+      // 4. “待办”筛选下勾选：这一条先播消失动画，播完才更新；底下统计的清单里也能勾
+      state.events = [{ ...nonrecEvent, id: 'f08-leaving', completed: false }];
+      state.filter = 'pending';
+      render();
+      document.querySelector('.agenda-item[data-id="f08-leaving"] .complete-button')?.click();
+      const leavingAnimated = Boolean(document.querySelector('.agenda-item.leaving'));
+      const notYetCompleted = state.events[0].completed === false;
+      await wait(800);
+      const completedAfterAnimation = state.events[0].completed === true;
+      const doneListed = document.querySelectorAll('[data-stat="done"] .sitem').length;
+      document.querySelector('[data-stat="done"] .sitem .chk')?.click();
+      await wait(800);
+      const restoredFromSummary = state.events[0].completed === false;
+
       return {
         seriesCompletedIsFalse,
         exceptionsIncludeToday,
@@ -525,9 +612,14 @@ async function run() {
         detachedDateIsToday,
         hadUndoSnapshot,
         undoRestored,
-        quickEditOpenedFromSearch,
+        editOpenedFromSearch,
         seriesStillNotCompletedInSearch,
-        nonrecCompletedFlipped
+        nonrecCompletedFlipped,
+        leavingAnimated,
+        notYetCompleted,
+        completedAfterAnimation,
+        doneListed,
+        restoredFromSummary
       };
     })()
   `);
@@ -539,9 +631,14 @@ async function run() {
   assert.equal(f08Result.detachedDateIsToday, true, '独立出来的当次日程日期应为今天');
   assert.equal(f08Result.hadUndoSnapshot, true, '完成当次操作前应生成撤销快照');
   assert.equal(f08Result.undoRestored, true, '撤销后应恢复原系列并移除分离日程');
-  assert.equal(f08Result.quickEditOpenedFromSearch, true, '搜索模式下点击重复日程 ✓ 应打开快速编辑卡');
+  assert.equal(f08Result.editOpenedFromSearch, true, '搜索模式下点击重复日程 ✓ 应打开编辑表单');
   assert.equal(f08Result.seriesStillNotCompletedInSearch, true, '搜索模式下点击重复日程 ✓ 不得直接修改系列 completed');
   assert.equal(f08Result.nonrecCompletedFlipped, true, '非重复日程点击 ✓ 应正常翻转完成状态');
+  assert.equal(f08Result.leavingAnimated, true, '“待办”筛选下勾选应先播消失动画');
+  assert.equal(f08Result.notYetCompleted, true, '消失动画播完之前不应更新数据');
+  assert.equal(f08Result.completedAfterAnimation, true, '消失动画播完后应标记为完成');
+  assert.equal(f08Result.doneListed, 1, '底下“已完成”的清单里应列出这条日程');
+  assert.equal(f08Result.restoredFromSummary, true, '在清单里取消勾选应改回待处理');
 
   console.log('F08 regression smoke test passed:', JSON.stringify(f08Result));
 
@@ -555,15 +652,19 @@ async function run() {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       await wait(50);
 
-      // 用例 1：快速录入「明天下午3点开会 提前2小时」并提交，再提交日程表单；保存下来的日程 reminders 等于 [120]
-      openQuickAdd();
-      $('#quickAddInput').value = '明天下午3点开会 提前2小时';
-      $('#quickAddInput').dispatchEvent(new Event('input', { bubbles: true }));
+      // 用例 1：新建日程，在提醒时间页里加“提前 2 小时”，取消默认的“准时”；保存下来的 reminders 等于 [120]
+      openEventDialog(null, state.selectedDate);
+      $('#eventTitle').value = '开会';
+      $('#eventReminderSelect').value = 'more';
+      $('#eventReminderSelect').dispatchEvent(new Event('change', { bubbles: true }));
+      const reminderPageOpened = $('#reminderDialog').open;
+      $('#customReminderAmount').value = '2';
+      $('#customReminderUnit').value = '60';
+      $('#customReminderAdd').click();
+      $('#eventReminderOptions input[value="0"]').click();
+      $('#reminderDoneButton').click();
       await wait(20);
-
-      // 提交快速录入（会打开 eventDialog）
-      $('#quickAddForm').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-      await wait(20);
+      const reminderLineText = $('#eventReminderSelect').selectedOptions[0].textContent;
 
       // 提交日程表单
       $('#eventForm').requestSubmit();
@@ -615,7 +716,20 @@ async function run() {
 
       $('#eventDialog').close();
 
+      // 用例 4：提醒时间页里一个都不选就关掉，等于不提醒
+      openEventDialog(null, state.selectedDate);
+      $('#eventReminderSelect').value = 'more';
+      $('#eventReminderSelect').dispatchEvent(new Event('change', { bubbles: true }));
+      $('#eventReminderOptions input[value="0"]').click();
+      $('#reminderDoneButton').click();
+      await wait(20);
+      const reminderTurnedOff = !$('#eventReminderOn').checked;
+      $('#eventDialog').close();
+
       return {
+        reminderPageOpened,
+        reminderLineText,
+        reminderTurnedOff,
         scenario1Reminders,
         scenario2Reminders,
         scenario3DynamicCount: dynamicOptions.length,
@@ -624,7 +738,10 @@ async function run() {
     })()
   `);
 
-  assert.deepEqual(f16Result.scenario1Reminders, [120], '快速录入提前2小时保存后的 reminders 应为 [120]');
+  assert.equal(f16Result.reminderPageOpened, true, '下拉框选“多个或自定义…”应打开提醒时间页');
+  assert.equal(f16Result.reminderLineText, '提前2小时', '自定义时长应显示在表单的下拉框里');
+  assert.deepEqual(f16Result.scenario1Reminders, [120], '自定义提前2小时保存后的 reminders 应为 [120]');
+  assert.equal(f16Result.reminderTurnedOff, true, '提醒时间页里一个都不选就关掉，应关闭提醒');
   assert.deepEqual(f16Result.scenario2Reminders, [15, 120], '已有 [15, 120] 提醒的日程保存后仍应为 [15, 120]');
   assert.equal(f16Result.scenario3DynamicCount, 0, '新建日程时动态选项应被移除');
   assert.equal(f16Result.scenario3Has15Or120, false, '新建日程表单里不应出现 15 和 120 选项');
@@ -691,11 +808,8 @@ async function run() {
       state.events = [eventA, eventB];
       render();
 
-      state.quickEditingId = eventA.id;
-      state.quickEditingDate = eventA.date;
-
-      // 对其中一条执行 quickEditAction('complete')
-      await quickEditAction('complete');
+      // 把其中一条标记完成
+      await toggleComplete(eventA.id, eventA.date);
 
       const updatedA = state.events.find((e) => e.id === eventA.id);
 
@@ -744,6 +858,7 @@ async function run() {
       });
 
       // 场景 1：在列表视图中点击已完成的重复系列 ✓，恢复整个系列
+      state.filter = 'all';
       state.searchQuery = '';
       state.events = [createCompletedSeries('r5-list-series')];
       render();
@@ -759,7 +874,7 @@ async function run() {
         eventsCount: state.events.length
       };
 
-      // 场景 2：独立重置干净的已完成日程，在搜索结果中点击 ✓，恢复整个系列且不打开快速编辑卡
+      // 场景 2：独立重置干净的已完成日程，在搜索结果中点击 ✓，恢复整个系列且不打开编辑表单
       state.events = [createCompletedSeries('r5-search-series')];
       state.searchQuery = '已完成';
       render();
@@ -768,11 +883,11 @@ async function run() {
       searchBtn?.click();
       await wait(50);
 
-      const quickEditOpened = Boolean(document.querySelector('#quickEditDialog')?.open);
-      document.querySelector('#quickEditDialog')?.close();
+      const editOpened = Boolean(document.querySelector('#eventDialog')?.open);
+      document.querySelector('#eventDialog')?.close();
       const seriesAfterSearch = state.events.find((e) => e.id === 'r5-search-series');
       const scenario2 = {
-        quickEditOpened,
+        editOpened,
         completedIsFalse: seriesAfterSearch?.completed === false,
         exceptionsEmpty: (seriesAfterSearch?.exceptions || []).length === 0,
         eventsCount: state.events.length
@@ -790,7 +905,7 @@ async function run() {
   assert.equal(r5Result.scenario1.eventsCount, 1, '场景1：列表中点击后 state.events 仍应只有 1 条日程');
 
   // 场景 2 断言
-  assert.equal(r5Result.scenario2.quickEditOpened, false, '场景2：搜索结果中点击不应打开快速编辑卡');
+  assert.equal(r5Result.scenario2.editOpened, false, '场景2：搜索结果中点击不应打开编辑表单');
   assert.equal(r5Result.scenario2.completedIsFalse, true, '场景2：搜索结果中原系列的 completed 应恢复为 false');
   assert.equal(r5Result.scenario2.exceptionsEmpty, true, '场景2：搜索结果中原系列的 exceptions 应为空');
   assert.equal(r5Result.scenario2.eventsCount, 1, '场景2：搜索结果中点击后 state.events 仍应只有 1 条日程');

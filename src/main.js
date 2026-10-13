@@ -42,6 +42,40 @@ const acrylicSupported =
   process.platform === 'win32' && Number(process.getSystemVersion().split('.')[2]) >= 22621;
 let appliedMaterial = 'none';
 
+// 日程栏展开时窗口向右变宽，日历的宽度不变。这几个数要和页面脚本里的保持一致
+const CALENDAR_MIN_WIDTH = 660;
+const CALENDAR_MAX_WIDTH = 2400;
+const AGENDA_DEFAULT_WIDTH = 270;
+const AGENDA_MIN_WIDTH = 200;
+const AGENDA_MAX_WIDTH = 460;
+const WINDOW_MIN_HEIGHT = 520;
+
+function agendaOpen() {
+  return appData.settings.agendaCollapsed === false;
+}
+
+function agendaWidth() {
+  const width = Number(appData.settings.agendaWidth);
+  if (!(width > 0)) return AGENDA_DEFAULT_WIDTH;
+  return Math.min(AGENDA_MAX_WIDTH, Math.max(AGENDA_MIN_WIDTH, Math.round(width)));
+}
+
+function minimumWindowWidth() {
+  return CALENDAR_MIN_WIDTH + (agendaOpen() ? agendaWidth() : 0);
+}
+
+// 把窗口调成“日历宽度 + 日程栏宽度”。左上角不动，放不下的部分就伸到屏幕外面
+function resizeWindow(calendarWidth) {
+  const bounds = mainWindow.getBounds();
+  const calendar = Math.min(CALENDAR_MAX_WIDTH, Math.max(CALENDAR_MIN_WIDTH, Math.round(calendarWidth)));
+  mainWindow.setMinimumSize(minimumWindowWidth(), WINDOW_MIN_HEIGHT);
+  mainWindow.setBounds({ ...bounds, width: calendar + (agendaOpen() ? agendaWidth() : 0) });
+}
+
+function currentCalendarWidth() {
+  return mainWindow.getBounds().width - (agendaOpen() ? agendaWidth() : 0);
+}
+
 function windowMaterial() {
   return acrylicSupported && appData.settings.frostedGlass !== false ? 'acrylic' : 'none';
 }
@@ -105,8 +139,8 @@ function scheduleSaveBounds() {
 
 function ensureVisibleBounds(saved) {
   const displays = screen.getAllDisplays();
-  const width = Math.max(720, Number(saved.width) || DEFAULT_DATA.window.width);
-  const height = Math.max(520, Number(saved.height) || DEFAULT_DATA.window.height);
+  const width = Math.max(minimumWindowWidth(), Number(saved.width) || DEFAULT_DATA.window.width);
+  const height = Math.max(WINDOW_MIN_HEIGHT, Number(saved.height) || DEFAULT_DATA.window.height);
   const candidate = {
     x: Number(saved.x),
     y: Number(saved.y),
@@ -187,8 +221,8 @@ function createWindow() {
   appliedMaterial = acrylicSupported ? 'acrylic' : 'none';
   mainWindow = new BrowserWindow({
     ...bounds,
-    minWidth: 720,
-    minHeight: 520,
+    minWidth: minimumWindowWidth(),
+    minHeight: WINDOW_MIN_HEIGHT,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -198,7 +232,7 @@ function createWindow() {
     maximizable: false,
     fullscreenable: false,
     hasShadow: true,
-    roundedCorners: true,
+    roundedCorners: false,
     icon: createAppIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -274,7 +308,7 @@ function updateTrayMenu() {
         click: () => (visible ? mainWindow.hide() : showWindow())
       },
       {
-        label: '快速添加日程',
+        label: '添加日程',
         click: () => {
           showWindow();
           mainWindow.webContents.send('event:create-request');
@@ -452,6 +486,32 @@ function registerIpc() {
     applyWindowSettings();
     updateTrayMenu();
     return appData.settings;
+  });
+
+  // 展开、收起日程栏，或者定下它的新宽度。日历的宽度保持不变，窗口跟着变宽变窄
+  ipcMain.handle('agenda:set', (_event, next) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return appData.settings;
+    const calendar = currentCalendarWidth();
+    if (typeof next?.collapsed === 'boolean') appData.settings.agendaCollapsed = next.collapsed;
+    if (Number(next?.width) > 0) appData.settings.agendaWidth = Math.round(Number(next.width));
+    appData.settings.agendaWidth = agendaWidth();
+    resizeWindow(calendar);
+    persistData();
+    return appData.settings;
+  });
+
+  // 拖动窗口右边缘的过程中：只改窗口，松手时再由 agenda:set 存盘
+  ipcMain.on('agenda:preview-width', (_event, width) => {
+    if (!mainWindow || mainWindow.isDestroyed() || !agendaOpen() || !(Number(width) > 0)) return;
+    const calendar = currentCalendarWidth();
+    appData.settings.agendaWidth = Math.round(Number(width));
+    appData.settings.agendaWidth = agendaWidth();
+    resizeWindow(calendar);
+  });
+
+  ipcMain.on('window:calendar-width', (_event, width) => {
+    if (!mainWindow || mainWindow.isDestroyed() || !(Number(width) > 0)) return;
+    resizeWindow(Number(width));
   });
 
   ipcMain.handle('update:check', () => Updater.check('manual'));

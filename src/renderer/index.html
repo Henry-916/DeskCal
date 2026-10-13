@@ -12,143 +12,119 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     />
     <title>DeskCal</title>
+    <link rel="stylesheet" href="../../node_modules/@fontsource-variable/noto-serif-sc/wght.css" />
+    <link rel="stylesheet" href="../../node_modules/@fontsource-variable/bodoni-moda/opsz.css" />
+    <link rel="stylesheet" href="../../node_modules/@fontsource-variable/bodoni-moda/opsz-italic.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <div class="app-shell">
+  <body class="tk">
+    <div class="win" id="win">
       <header class="titlebar">
-        <div class="brand reveal">
-          <img class="brand-mark" src="../../assets/deskcal-icon.png" alt="" aria-hidden="true" />
-          <span>DeskCal</span>
-        </div>
+        <span class="brand">DeskCal</span>
         <div class="drag-region"></div>
         <div class="window-actions reveal">
-          <button id="agendaToggle" class="icon-button" title="收起日程栏" aria-label="收起日程栏" aria-expanded="true">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></svg>
+          <button id="themeButton" class="icon">
+            <span class="orbit">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6"/><path d="M12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.6 5.6l1.9 1.9M16.5 16.5l1.9 1.9M18.4 5.6l-1.9 1.9M7.5 16.5l-1.9 1.9"/></svg>
+              <svg class="moon" viewBox="0 0 24 24"><path d="M19.5 14.2A7.8 7.8 0 0 1 9.8 4.5a7.8 7.8 0 1 0 9.7 9.7z"/></svg>
+            </span>
           </button>
-          <button id="settingsButton" class="icon-button" title="设置" aria-label="设置">
-            <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.94 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.57 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.04V3h4v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06L19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+          <button id="settingsButton" class="icon" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24"><g transform="translate(12 12) scale(.8) translate(-12 -12)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></g></svg>
           </button>
-          <button id="minimizeButton" class="icon-button" title="最小化" aria-label="最小化">
+          <button id="minimizeButton" class="icon" title="最小化" aria-label="最小化">
             <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
           </button>
-          <button id="closeButton" class="icon-button close-button" title="隐藏到托盘" aria-label="隐藏到托盘">
+          <button id="closeButton" class="icon" title="隐藏到托盘" aria-label="隐藏到托盘">
             <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
           </button>
         </div>
       </header>
 
-      <main class="workspace">
-        <section class="calendar-panel">
-          <div class="calendar-toolbar">
+      <main class="app" id="app">
+        <section class="cal">
+          <div class="top">
             <div class="calendar-heading">
-              <h1 id="monthTitle">7月</h1>
-              <p class="calendar-subtitle" id="todayLabel"></p>
+              <span class="month"><span id="monthTitle">7</span><i>月</i></span>
+              <span class="range" id="todayLabel"></span>
             </div>
-            <div class="calendar-toolbar-actions reveal">
-              <div id="calendarViewControl" class="mini-segmented" aria-label="日历视图">
-                <button type="button" class="active" data-view="month">月</button>
+            <span class="tools reveal">
+              <span id="calendarViewControl" class="joined" aria-label="日历视图">
+                <button type="button" data-view="month">月</button>
                 <button type="button" data-view="week">周</button>
-              </div>
-              <div class="calendar-navigation">
-                <button id="previousMonth" class="round-button" aria-label="上一时间段">
-                  <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
-                </button>
-                <button id="todayButton" class="text-button">今天</button>
-                <button id="nextMonth" class="round-button" aria-label="下一时间段">
-                  <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-                </button>
-              </div>
-            </div>
+              </span>
+              <button id="previousMonth" class="btn" aria-label="上一时间段">‹</button>
+              <button id="todayButton" class="btn">今天</button>
+              <button id="nextMonth" class="btn" aria-label="下一时间段">›</button>
+            </span>
           </div>
 
-          <div class="week-header" id="weekHeader"></div>
-          <div class="calendar-grid" id="calendarGrid" role="grid"></div>
+          <div id="calendarGrid"></div>
 
-          <p class="month-summary">
-            本月 <strong id="monthEventCount">0</strong> 项日程 · 已完成
-            <strong id="monthCompletedCount">0</strong> · 待处理
-            <strong id="monthPendingCount">0</strong>
-          </p>
+          <p class="summary" id="summary"></p>
         </section>
 
-        <div id="agendaResizer" class="agenda-resizer" title="拖动调整日程栏宽度，双击收起或展开"></div>
+        <div
+          id="edgeGrip"
+          class="grip"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="拖动调整宽度"
+          tabindex="0"
+        ></div>
+        <div id="tearLine" class="tear" title="双击收起日程栏"></div>
 
-        <aside class="agenda-panel">
-          <div class="agenda-header">
+        <aside class="side">
+          <div class="side-top">
             <div>
-              <h2 id="selectedDateTitle">7月29日</h2>
-              <p id="selectedDateMeta" class="muted">星期三 · 0项安排</p>
-              <p id="selectedLunarMeta" class="lunar-meta">农历六月十六</p>
-              <div id="selectedDayTags" class="selected-day-tags"></div>
+              <div id="selectedDateTitle" class="side-date"></div>
+              <div id="selectedDateMeta" class="meta"></div>
             </div>
-            <button id="addEventButton" class="primary-icon-button" title="添加日程（Ctrl+N）" aria-label="添加日程">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
+            <button id="addEventButton" class="plus" title="添加日程（Ctrl+N）" aria-label="添加日程">+</button>
           </div>
-
-          <div class="agenda-tools quiet">
-            <label class="search-box">
-              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
-              <input id="searchInput" type="search" placeholder="搜索全部日程" autocomplete="off" />
-            </label>
-            <button id="quickAddButton" class="quick-add-button" type="button" title="中文快速输入">
-              <svg viewBox="0 0 24 24"><path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z"/></svg>
-            </button>
+          <div class="search quiet">
+            <input id="searchInput" type="search" placeholder="搜索全部日程" autocomplete="off" aria-label="搜索全部日程" />
           </div>
-
-          <div class="agenda-filters quiet" role="tablist">
-            <button class="filter-pill active" data-filter="all">全部</button>
-            <button class="filter-pill" data-filter="pending">待办</button>
-            <button class="filter-pill" data-filter="completed">已完成</button>
-            <button class="filter-pill" data-filter="upcoming">七天</button>
+          <div id="agendaFilters" class="joined quiet" role="tablist">
+            <button type="button" data-filter="all">全部</button>
+            <button type="button" data-filter="pending">待办</button>
+            <button type="button" data-filter="completed">已完成</button>
+            <button type="button" data-filter="upcoming">未来七天</button>
           </div>
-
-          <div id="agendaList" class="agenda-list"></div>
+          <div id="agendaList" class="list"></div>
         </aside>
       </main>
     </div>
 
-    <dialog id="eventDialog" class="modal">
-      <form id="eventForm" method="dialog">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">日程详情</p>
-            <h2 id="eventDialogTitle">添加新日程</h2>
+    <dialog id="eventDialog">
+      <form id="eventForm" class="vA" method="dialog">
+        <div class="main">
+          <div class="thead">
+            <h3 id="eventDialogTitle">添加新日程</h3>
+            <button type="button" class="x" data-close-dialog="eventDialog" aria-label="关闭">×</button>
           </div>
-          <button type="button" class="icon-button" data-close-dialog="eventDialog" aria-label="关闭">
-            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
-          </button>
+          <input type="hidden" id="eventId" />
+          <input id="eventTitle" class="name" maxlength="100" placeholder="日程名称" aria-label="日程名称" required />
+          <div class="trip time-field">
+            <label><span class="cap">开始</span><input id="eventStartTime" class="clock" type="time" value="09:00" required /></label>
+            <span class="arrow">→</span>
+            <label><span class="cap">结束</span><input id="eventEndTime" class="clock" type="time" value="10:00" required /></label>
+          </div>
+          <div class="trip all-day-time-field hidden">
+            <div><span class="cap">时间</span><span class="allday-word">全天</span></div>
+            <label><span class="cap">提醒时间</span><input id="eventAllDayReminderTime" class="clock" type="time" value="09:00" /></label>
+          </div>
+          <div class="pairrow">
+            <label class="fl"><span>日期</span><input id="eventDate" type="date" required /></label>
+            <label class="check"><input id="eventAllDay" type="checkbox" />全天</label>
+          </div>
+          <label class="fl"><span>地点</span><input id="eventLocation" maxlength="200" placeholder="例如：三楼会议室或线上会议" /></label>
+          <label class="fl"><span>备注</span><textarea id="eventNotes" rows="2" maxlength="500" placeholder="添加会议链接或补充说明"></textarea></label>
+          <div id="eventConflictWarning" class="warnbox hidden"></div>
         </div>
-
-        <input type="hidden" id="eventId" />
-        <label class="field field-full">
-          <span>日程名称</span>
-          <input id="eventTitle" maxlength="100" placeholder="例如：项目周会" required autofocus />
-        </label>
-
-        <div class="form-grid">
-          <label class="field">
-            <span>日期</span>
-            <input id="eventDate" type="date" required />
-          </label>
-          <label class="field checkbox-field">
-            <input id="eventAllDay" type="checkbox" />
-            <span>全天日程</span>
-          </label>
-          <label class="field time-field">
-            <span>开始时间</span>
-            <input id="eventStartTime" type="time" value="09:00" required />
-          </label>
-          <label class="field time-field">
-            <span>结束时间</span>
-            <input id="eventEndTime" type="time" value="10:00" required />
-          </label>
-          <label class="field all-day-time-field hidden">
-            <span>全天提醒时间</span>
-            <input id="eventAllDayReminderTime" type="time" value="09:00" />
-          </label>
-          <label class="field">
+        <div class="stub">
+          <span class="cap">存根</span>
+          <label class="fl">
             <span>重复</span>
             <select id="eventRepeat">
               <option value="none">不重复</option>
@@ -159,22 +135,15 @@
               <option value="yearly">每年</option>
             </select>
           </label>
-          <label id="repeatIntervalField" class="field recurrence-field hidden">
-            <span>重复间隔</span>
-            <span class="inline-input">
-              每 <input id="eventRepeatInterval" type="number" min="1" max="365" value="1" />
-              <span id="repeatIntervalUnit">周</span>
-            </span>
-          </label>
-          <label id="repeatUntilField" class="field recurrence-field hidden">
-            <span>截止日期（可选）</span>
-            <input id="eventRepeatUntil" type="date" />
-          </label>
-          <label id="repeatCountField" class="field recurrence-field hidden">
-            <span>重复次数（可选）</span>
-            <input id="eventRepeatCount" type="number" min="1" max="10000" placeholder="不限次数" />
-          </label>
-          <label id="eventEditScopeField" class="field hidden">
+          <div id="repeatRuleRow" class="reprow hidden">
+            <div id="repeatIntervalField" class="fl">
+              <span>间隔</span>
+              <span class="custom">每 <input id="eventRepeatInterval" type="number" min="1" max="365" value="1" aria-label="重复间隔" /> <span id="repeatIntervalUnit">周</span></span>
+            </div>
+            <label class="fl"><span>次数（可选）</span><input id="eventRepeatCount" type="number" min="1" max="10000" placeholder="不限" /></label>
+          </div>
+          <label id="repeatUntilField" class="fl hidden"><span>截止日期（可选）</span><input id="eventRepeatUntil" type="date" /></label>
+          <label id="eventEditScopeField" class="fl hidden">
             <span>应用到</span>
             <select id="eventEditScope">
               <option value="occurrence">仅本次</option>
@@ -182,25 +151,26 @@
               <option value="series">整个系列</option>
             </select>
           </label>
-          <label class="field">
-            <span>颜色</span>
-            <div class="color-picker">
-              <input id="eventColor" type="color" value="#6750e8" />
-              <span id="eventColorText">默认颜色</span>
-              <button id="eventColorReset" type="button" class="link-button hidden">恢复默认</button>
-            </div>
-          </label>
-        </div>
-
-        <div class="field field-full">
-          <span>提醒（可多选）</span>
-          <div id="eventReminderOptions" class="choice-grid">
-            <label><input type="checkbox" value="0" />准时</label>
-            <label><input type="checkbox" value="5" />提前5分钟</label>
-            <label><input type="checkbox" value="10" checked />提前10分钟</label>
-            <label><input type="checkbox" value="30" />提前30分钟</label>
+          <div class="fl"><span>颜色</span><div id="eventColors" class="colors"></div></div>
+          <div class="fl">
+            <label class="check"><input id="eventReminderOn" type="checkbox" />提醒</label>
+            <div id="eventReminderLine" class="remline"><select id="eventReminderSelect" aria-label="提醒时间"></select></div>
           </div>
-          <div class="reminder-custom">
+          <div class="foot">
+            <button type="submit" class="btn primary big">保存日程</button>
+            <button type="button" class="btn ghost big" data-close-dialog="eventDialog">取消</button>
+            <button id="deleteEventButton" type="button" class="btn danger big hidden">删除日程</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="reminderDialog" class="tkd small">
+      <div class="tkt">
+        <div class="dhead"><div><h3>提醒时间</h3><div class="meta">可以多选。</div></div></div>
+        <div class="vA">
+          <div id="eventReminderOptions" class="joined"></div>
+          <div class="custom">
             <span>自定义：提前</span>
             <input id="customReminderAmount" type="number" min="1" max="10080" aria-label="自定义提醒时长" />
             <select id="customReminderUnit" aria-label="自定义提醒单位">
@@ -208,304 +178,138 @@
               <option value="60">小时</option>
               <option value="1440">天</option>
             </select>
-            <button id="customReminderAdd" type="button" class="secondary-button">添加</button>
+            <button id="customReminderAdd" type="button" class="btn">添加</button>
           </div>
         </div>
-
-        <label class="field field-full">
-          <span>地点</span>
-          <input id="eventLocation" maxlength="200" placeholder="例如：三楼会议室或线上会议" />
-        </label>
-
-        <label class="field field-full">
-          <span>备注</span>
-          <textarea id="eventNotes" rows="3" maxlength="500" placeholder="添加地点、会议链接或补充说明"></textarea>
-        </label>
-
-        <div id="eventConflictWarning" class="conflict-warning hidden"></div>
-
-        <div class="modal-actions">
-          <button id="deleteEventButton" type="button" class="danger-button hidden">删除日程</button>
-          <button id="skipOccurrenceButton" type="button" class="secondary-button hidden">
-            仅跳过本次
-          </button>
-          <span class="action-spacer"></span>
-          <button type="button" class="secondary-button" data-close-dialog="eventDialog">取消</button>
-          <button type="submit" class="primary-button">保存日程</button>
-        </div>
-      </form>
+        <div class="foot"><button id="reminderDoneButton" type="button" class="btn primary big">完成</button></div>
+      </div>
     </dialog>
 
-    <dialog id="settingsDialog" class="modal settings-modal">
-      <form method="dialog">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">个性化</p>
-            <h2>桌面日历设置</h2>
-          </div>
-          <button type="button" class="icon-button" data-close-dialog="settingsDialog" aria-label="关闭">
-            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
-          </button>
+    <dialog id="settingsDialog" class="tkd">
+      <div class="tkt">
+        <div class="dhead">
+          <div><h3>桌面日历设置</h3></div>
+          <button type="button" class="x" data-close-dialog="settingsDialog" aria-label="关闭">×</button>
         </div>
-
-        <div class="settings-section">
-          <h3>显示方式</h3>
-          <div class="segmented-control" id="windowModeControl">
+        <div class="set">
+          <h4>显示方式</h4>
+          <div class="joined" id="windowModeControl">
             <button type="button" data-mode="desktop">桌面组件</button>
             <button type="button" data-mode="floating">普通窗口</button>
             <button type="button" data-mode="top">始终置顶</button>
           </div>
-          <p id="windowModeHint" class="settings-hint"></p>
-        </div>
-
-        <div class="settings-section">
-          <div class="setting-row">
-            <div>
-              <strong>背景不透明度</strong>
-              <p>调低可以透出更多壁纸，文字不受影响</p>
-            </div>
-            <div class="range-control">
-              <input id="opacityRange" type="range" min="0" max="100" step="1" />
-              <span id="opacityValue">30%</span>
-            </div>
+          <span id="windowModeHint" class="hint"></span>
+          <div class="srow">
+            <div>背景不透明度<small>调低可以透出更多壁纸，文字不受影响</small></div>
+            <span class="rangewrap">
+              <input id="opacityRange" type="range" min="0" max="100" step="1" aria-label="背景不透明度" />
+              <span id="opacityValue" class="n">30%</span>
+            </span>
           </div>
-          <label class="setting-row" id="frostedGlassRow">
-            <div>
-              <strong>毛玻璃</strong>
-              <p>模糊窗口背后的内容。关闭后壁纸直接透出来，背景可以调到完全透明</p>
-            </div>
-            <input id="frostedGlassToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>鼠标穿透</strong>
-              <p>开启后请从系统托盘关闭穿透</p>
-            </div>
-            <input id="clickThroughToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>开机自动启动</strong>
-              <p>登录Windows后自动恢复桌面日历</p>
-            </div>
-            <input id="startOnBootToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>提醒声音</strong>
-              <p>日程到期时播放系统通知声音</p>
-            </div>
-            <input id="soundToggle" class="switch" type="checkbox" />
-          </label>
-        </div>
-
-        <div class="settings-section">
-          <h3>主题</h3>
-          <div class="segmented-control" id="themeControl">
-            <button type="button" data-theme="system">跟随系统</button>
-            <button type="button" data-theme="light">浅色</button>
-            <button type="button" data-theme="dark">深色</button>
+          <div class="srow" id="frostedGlassRow">
+            <div>毛玻璃<small>模糊窗口背后的内容。关闭后壁纸直接透出来</small></div>
+            <button type="button" class="sw" data-setting="frostedGlass"></button>
           </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-section-heading">
-            <div>
-              <h3>中国日历</h3>
-              <p>农历、节气及法定节假日均可离线显示</p>
-            </div>
-            <span class="data-chip">2026官方休班</span>
+          <div class="srow">
+            <div>鼠标穿透<small>开启后请从系统托盘关闭穿透</small></div>
+            <button type="button" class="sw" data-setting="clickThrough"></button>
           </div>
-          <label class="setting-row">
-            <div>
-              <strong>显示农历</strong>
-              <p>在公历日期下方显示农历日期</p>
-            </div>
-            <input id="lunarToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>显示传统节日</strong>
-              <p>春节、元宵、端午、中秋等传统节日</p>
-            </div>
-            <input id="traditionalFestivalToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>显示二十四节气</strong>
-              <p>立春、清明、夏至、冬至等节气</p>
-            </div>
-            <input id="solarTermToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>显示纪念日</strong>
-              <p>植树节、青年节、教师节等，默认关闭</p>
-            </div>
-            <input id="commemorativeToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>法定节假日</strong>
-              <p>显示国务院发布的放假和调休安排</p>
-            </div>
-            <input id="officialHolidayToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>显示休班角标</strong>
-              <p>用“休”和“班”区分假期与调休工作日</p>
-            </div>
-            <input id="holidayBadgeToggle" class="switch" type="checkbox" />
-          </label>
-          <label class="setting-row">
-            <div>
-              <strong>突出周末</strong>
-              <p>强化周六、周日的列标题和日期背景</p>
-            </div>
-            <input id="weekendHighlightToggle" class="switch" type="checkbox" />
-          </label>
-          <p class="settings-source-note">
-            2026年休班数据来源：国务院办公厅，国办发明电〔2025〕7号，发布于2025年11月4日。
-          </p>
-        </div>
+          <div class="srow">
+            <div>开机自动启动<small>登录 Windows 后自动恢复桌面日历</small></div>
+            <button type="button" class="sw" data-setting="startOnBoot"></button>
+          </div>
+          <div class="srow">
+            <div>提醒声音<small>日程到期时播放系统通知声音</small></div>
+            <button type="button" class="sw" data-setting="sound"></button>
+          </div>
 
-        <div class="settings-section">
-          <div class="settings-section-heading">
-            <div>
-              <h3>关于与更新</h3>
-              <p id="updateStatus">当前版本</p>
-            </div>
-            <button id="updateActionButton" type="button" class="secondary-button">检查更新</button>
+          <h4>中国日历</h4>
+          <div class="srow">
+            <div>显示农历<small>在公历日期下方显示农历日期</small></div>
+            <button type="button" class="sw" data-setting="showLunar"></button>
+          </div>
+          <div class="srow">
+            <div>显示传统节日<small>春节、元宵、端午、中秋等</small></div>
+            <button type="button" class="sw" data-setting="showTraditionalFestivals"></button>
+          </div>
+          <div class="srow">
+            <div>显示二十四节气<small>立春、清明、夏至、冬至等</small></div>
+            <button type="button" class="sw" data-setting="showSolarTerms"></button>
+          </div>
+          <div class="srow">
+            <div>显示纪念日<small>植树节、青年节、教师节等，默认关闭</small></div>
+            <button type="button" class="sw" data-setting="showCommemorativeDays"></button>
+          </div>
+          <div class="srow">
+            <div>法定节假日<small>显示国务院发布的放假和调休安排</small></div>
+            <button type="button" class="sw" data-setting="showOfficialHolidays"></button>
+          </div>
+          <div class="srow">
+            <div>显示休班角标<small>用“休”和“班”区分假期与调休工作日</small></div>
+            <button type="button" class="sw" data-setting="showHolidayBadges"></button>
+          </div>
+          <div class="srow">
+            <div>突出周末<small>周六、周日的日期用斜体</small></div>
+            <button type="button" class="sw" data-setting="highlightWeekends"></button>
+          </div>
+          <span class="hint">2026年休班数据来源：国务院办公厅，国办发明电〔2025〕7号，发布于2025年11月4日。</span>
+
+          <h4>关于与更新</h4>
+          <div class="srow">
+            <div>DeskCal<small id="updateStatus">当前版本</small></div>
+            <button id="updateActionButton" type="button" class="btn">检查更新</button>
           </div>
           <progress id="updateProgress" class="update-progress hidden" max="100" value="0"></progress>
-          <p class="settings-hint">
+          <span class="hint">
             更新从 GitHub 下载。网络不通时可以
-            <button id="releasePageButton" type="button" class="link-button">打开发布页</button>
+            <button id="releasePageButton" type="button" class="link">打开发布页</button>
             手动下载安装包。
-          </p>
-        </div>
+          </span>
 
-        <div class="settings-section backup-section">
-          <div>
-            <h3>数据备份</h3>
-            <p>所有数据默认仅保存在当前电脑</p>
+          <h4>数据备份</h4>
+          <div class="srow">
+            <div>所有数据默认仅保存在当前电脑</div>
+            <span class="chips">
+              <button id="recycleBinButton" type="button" class="btn">回收站</button>
+              <button id="importButton" type="button" class="btn">导入备份</button>
+              <button id="exportButton" type="button" class="btn">导出备份</button>
+            </span>
           </div>
-          <div>
-            <button id="recycleBinButton" type="button" class="secondary-button">回收站</button>
-            <button id="importButton" type="button" class="secondary-button">导入备份</button>
-            <button id="exportButton" type="button" class="secondary-button">导出备份</button>
-          </div>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="quickAddDialog" class="modal quick-add-modal">
-      <form id="quickAddForm" method="dialog">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">快速创建</p>
-            <h2>一句话添加日程</h2>
-          </div>
-          <button type="button" class="icon-button" data-close-dialog="quickAddDialog" aria-label="关闭">
-            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
-          </button>
-        </div>
-        <label class="field">
-          <span>输入日期、时间和内容</span>
-          <input
-            id="quickAddInput"
-            maxlength="200"
-            placeholder="例如：明天下午3点开项目会，提前30分钟提醒"
-            autocomplete="off"
-          />
-        </label>
-        <div id="quickAddPreview" class="quick-add-preview">
-          输入后会自动识别日期、时间、重复和提醒。
-        </div>
-        <div class="quick-examples">
-          <button type="button" data-example="明天下午3点开项目会，提前30分钟提醒">明天下午3点开会</button>
-          <button type="button" data-example="每周周一上午10点团队例会">每周一团队例会</button>
-          <button type="button" data-example="每个工作日写日报 不提醒">工作日写日报</button>
-        </div>
-        <div class="modal-actions">
-          <span class="action-spacer"></span>
-          <button type="button" class="secondary-button" data-close-dialog="quickAddDialog">取消</button>
-          <button type="submit" class="primary-button">解析并继续</button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="recycleBinDialog" class="modal recycle-bin-modal">
-      <div class="dialog-content">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">数据安全</p>
-            <h2>日程回收站</h2>
-            <p class="muted">删除的日程会保留在这里，直到永久删除。</p>
-          </div>
-          <button type="button" class="icon-button" data-close-dialog="recycleBinDialog" aria-label="关闭">
-            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
-          </button>
-        </div>
-        <div id="recycleBinList" class="recycle-bin-list"></div>
-      </div>
-    </dialog>
-
-    <dialog id="quickEditDialog" class="modal quick-edit-modal">
-      <div class="dialog-content">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">快速调整</p>
-            <h2 id="quickEditTitle">日程</h2>
-            <p id="quickEditMeta" class="muted"></p>
-          </div>
-          <button type="button" class="icon-button" data-close-dialog="quickEditDialog" aria-label="关闭">
-            <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
-          </button>
-        </div>
-        <div class="quick-edit-actions">
-          <button type="button" class="secondary-button" data-quick-action="later30">延后30分钟</button>
-          <button type="button" class="secondary-button" data-quick-action="later60">延后1小时</button>
-          <button type="button" class="secondary-button" data-quick-action="tomorrow">移到明天</button>
-          <button type="button" class="secondary-button" data-quick-action="complete">标记完成</button>
-        </div>
-        <div class="modal-actions">
-          <button id="quickEditDeleteButton" type="button" class="danger-button">删除</button>
-          <span class="action-spacer"></span>
-          <button id="quickEditFullButton" type="button" class="primary-button">完整编辑</button>
         </div>
       </div>
     </dialog>
 
-    <dialog id="recurrenceScopeDialog" class="modal scope-modal">
-      <div class="dialog-content">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">重复日程</p>
-            <h2 id="scopeDialogTitle">应用此次调整</h2>
-            <p id="scopeDialogMessage" class="muted">请选择调整范围</p>
-          </div>
+    <dialog id="recycleBinDialog" class="tkd">
+      <div class="tkt">
+        <div class="dhead">
+          <div><h3>日程回收站</h3><div class="meta">删除的日程会保留在这里，直到永久删除。</div></div>
+          <button type="button" class="x" data-close-dialog="recycleBinDialog" aria-label="关闭">×</button>
         </div>
-        <div class="scope-actions">
-          <button type="button" class="secondary-button" data-scope="occurrence">仅本次</button>
-          <button type="button" class="secondary-button" data-scope="future">本次及以后</button>
-          <button type="button" class="primary-button" data-scope="series">整个系列</button>
-        </div>
-        <button type="button" class="scope-cancel text-button" data-scope="cancel">取消</button>
+        <div id="recycleBinList" class="list"></div>
       </div>
     </dialog>
 
-    <dialog id="askDialog" class="modal scope-modal">
-      <form id="askForm" method="dialog">
+    <dialog id="recurrenceScopeDialog" class="tkd small">
+      <div class="tkt">
+        <div class="dhead">
+          <div><h3 id="scopeDialogTitle">应用此次调整</h3><div id="scopeDialogMessage" class="meta">请选择调整范围</div></div>
+        </div>
+        <div class="stack">
+          <button type="button" class="btn big" data-scope="occurrence">仅本次</button>
+          <button type="button" class="btn big" data-scope="future">本次及以后</button>
+          <button type="button" class="btn big" data-scope="series">整个系列</button>
+        </div>
+        <div class="foot"><button type="button" class="btn ghost" data-scope="cancel">取消</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="askDialog" class="tkd small">
+      <form id="askForm" class="tkt" method="dialog">
+        <div class="dhead"><div><h3>请确认</h3></div></div>
         <p id="askMessage" class="ask-message"></p>
-        <label id="askInputField" class="field hidden">
-          <input id="askInput" maxlength="50" autocomplete="off" />
-        </label>
-        <div class="modal-actions">
-          <span class="action-spacer"></span>
-          <button id="askCancelButton" type="button" class="secondary-button">取消</button>
-          <button id="askConfirmButton" type="submit" class="primary-button">确定</button>
+        <div class="foot">
+          <button id="askCancelButton" type="button" class="btn ghost big">取消</button>
+          <button id="askConfirmButton" type="submit" class="btn primary big">确定</button>
         </div>
       </form>
     </dialog>
@@ -514,7 +318,6 @@
     <script src="../../node_modules/lunar-javascript/lunar.js"></script>
     <script src="../chinese-calendar.js"></script>
     <script src="../calendar-core.js"></script>
-    <script src="../quick-input.js"></script>
     <script src="../planner-core.js"></script>
     <script src="./app.js"></script>
   </body>
