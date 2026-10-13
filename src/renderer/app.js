@@ -72,6 +72,8 @@ const state = {
   calendars: [],
   settings: {},
   selectedDate: dateKey(new Date()),
+  // 上一次画日历时选中的是哪天
+  shownSelectedDate: null,
   viewMode: 'month',
   filter: 'pending',
   searchQuery: '',
@@ -756,6 +758,11 @@ function renderCalendar() {
       .filter(Boolean)
       .join(' · ');
     $('#calendarGrid').innerHTML = renderMonth(days, month);
+  }
+  // 换了选中的日子才播荧光笔的书写动画；勾选完成、切换视图这类重画不重播
+  if (state.selectedDate !== state.shownSelectedDate) {
+    $('#calendarGrid .sel')?.classList.add('fresh');
+    state.shownSelectedDate = state.selectedDate;
   }
   $('#calendarGrid').classList.toggle('week-view', isWeekView);
   $all('#calendarViewControl button').forEach((button) => {

@@ -103,9 +103,14 @@ async function run() {
       );
 
       // 周历票根区的空白：只选中那一天，不新建也不动日程栏；鼠标移上去才有的“＋ 新日程”才是新建
+      // 切换视图这类重画不重播荧光笔的书写动画；换了选中的日子才播
+      const highlighterQuietOnRerender = document.querySelectorAll('#calendarGrid .fresh').length === 0;
       const otherColumn = [...document.querySelectorAll('.col')].find((col) => !col.classList.contains('sel'));
       otherColumn.querySelector('.evs').click();
       await wait(250);
+      const highlighterDrawnOnSelect =
+        document.querySelectorAll('#calendarGrid .sel.fresh').length === 1 &&
+        getComputedStyle(document.querySelector('.sel .num'), '::before').animationName === 'hl-write';
       const blankClickSelects =
         state.selectedDate === otherColumn.dataset.date &&
         !document.querySelector('#eventDialog').open &&
@@ -216,6 +221,8 @@ async function run() {
         weekCardText,
         summaryText,
         smallestText,
+        highlighterQuietOnRerender,
+        highlighterDrawnOnSelect,
         blankClickSelects,
         ghostAddOpensNewForm,
         recurrenceScopeOpened,
@@ -271,6 +278,8 @@ async function run() {
   assert.match(result.weekCardText, /Electron 冒烟测试/, '周历的票根应直接写出标题');
   assert.match(result.summaryText, /^本周 1 项日程 · 已完成 0.*待处理 1/, '周历底下应统计本周的日程');
   assert.ok(result.smallestText >= 12, `界面文字不应小于 12px，实际最小 ${result.smallestText}px`);
+  assert.equal(result.highlighterQuietOnRerender, true, '没换选中的日子时，重画不应重播荧光笔动画');
+  assert.equal(result.highlighterDrawnOnSelect, true, '选中另一天时荧光笔应播一次书写动画');
   assert.equal(result.blankClickSelects, true, '点周历票根区的空白只应选中那一天');
   assert.equal(result.ghostAddOpensNewForm, true, '点“＋ 新日程”应在那一天新建');
   assert.equal(result.recurrenceScopeOpened, true, 'dragging a recurring event should ask for scope');

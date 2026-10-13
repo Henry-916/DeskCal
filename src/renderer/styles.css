@@ -181,6 +181,13 @@ html.theme-fx::view-transition-old(appwin) { -webkit-mask-image: conic-gradient(
 .week > .col:not(.sel):hover { opacity: 0.9; }
 .sel .num { color: var(--ink); font-weight: 800; text-shadow: none; }
 .sel .num::before { content: ""; position: absolute; left: -7px; right: -9px; bottom: var(--hl-b); height: var(--hl-h); background: var(--hl); border-radius: 3px 9px 4px 10px; transform: rotate(-2deg); z-index: -1; }
+/* 刚选中时：荧光笔从左往右一笔划过，匀速、短促，不拖尾。只在换了选中的日子时播一次 */
+.fresh .num::before { animation: hl-write 0.16s cubic-bezier(0.4, 0, 0.6, 1) both; }
+@keyframes hl-write {
+  from { clip-path: inset(-6px 100% -6px -6px); }
+  to { clip-path: inset(-6px -6px -6px -6px); }
+}
+@media (prefers-reduced-motion: reduce) { .fresh .num::before { animation: none; } }
 /* 休息日（周末和法定放假，调休上班除外）的数字换一个颜色 */
 .rest-day .num { color: var(--rest); }
 .today.rest-day:not(.sel) .num { color: var(--acc); }
