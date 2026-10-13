@@ -302,13 +302,6 @@
     return { frequency: 'none', token: '', span: null };
   }
 
-  function inferCategory(text) {
-    if (/重要|紧急|截止/.test(text)) return 'important';
-    if (/学习|课程|上课|考试|复习|作业/.test(text)) return 'study';
-    if (/生日|家庭|家人|生活|买菜|健身|医院/.test(text)) return 'life';
-    return 'work';
-  }
-
   function mergeSpans(spans) {
     if (!spans.length) return [];
     const sorted = spans.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -388,8 +381,7 @@
         interval: 1,
         until: null,
         count: null
-      },
-      category: inferCategory(original)
+      }
     };
   }
 

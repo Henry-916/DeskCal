@@ -841,49 +841,6 @@ svg {
   background: var(--tile-strong);
 }
 
-.calendar-strip {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-/* 只有一个日历时没有什么可筛的 */
-.calendar-strip:has(.calendar-chip:only-child) {
-  display: none;
-}
-
-.calendar-chip {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-  background: transparent;
-  font-size: var(--fs-caption);
-}
-
-.calendar-chip span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  filter: grayscale(1);
-  opacity: 0.45;
-}
-
-.calendar-chip.active {
-  color: var(--text);
-  background: var(--tile);
-}
-
-.calendar-chip.active span {
-  filter: none;
-  opacity: 1;
-}
-
 .agenda-list {
   display: flex;
   flex: 1;
@@ -1137,8 +1094,7 @@ svg {
 
 .field input:not([type="checkbox"]):not([type="color"]),
 .field select,
-.field textarea,
-.calendar-manager-item > input[type="text"] {
+.field textarea {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -1181,8 +1137,24 @@ svg {
 
 .choice-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+}
+
+.reminder-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}
+
+.reminder-custom input[type="number"] {
+  width: 72px !important;
+}
+
+.reminder-custom select {
+  width: auto;
 }
 
 .choice-grid label {
@@ -1203,7 +1175,6 @@ svg {
 }
 
 .choice-grid input,
-.calendar-visible-label input,
 .range-control input {
   accent-color: var(--accent);
 }
@@ -1215,8 +1186,7 @@ svg {
   min-height: 38px;
 }
 
-.color-picker input,
-.calendar-manager-item > input[type="color"] {
+.color-picker input {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -1422,27 +1392,11 @@ svg {
   transform: translateX(18px);
 }
 
-.calendar-manager-list,
 .recycle-bin-list,
 .scope-actions {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.calendar-manager-item {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.calendar-visible-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--muted);
-  font-size: var(--fs-caption);
 }
 
 .quick-edit-actions {

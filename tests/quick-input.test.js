@@ -31,11 +31,10 @@ test('解析工作日全天日程和不提醒', () => {
   assert.equal(value.recurrence.frequency, 'weekdays');
 });
 
-test('解析绝对日期、24小时制和分类', () => {
+test('解析绝对日期和24小时制', () => {
   const value = parseQuickInput('8月3日 15:30 复习考试', NOW);
   assert.equal(value.date, '2026-08-03');
   assert.equal(value.startTime, '15:30');
-  assert.equal(value.category, 'study');
 });
 
 test('下周日期落在紧接着的自然周', () => {

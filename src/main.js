@@ -445,18 +445,6 @@ function registerIpc() {
     return { ok: true };
   });
 
-  ipcMain.handle('calendars:save', (_event, calendars) => {
-    const normalized = DataModel.normalizeCalendars(calendars);
-    const validIds = new Set(normalized.map((calendar) => calendar.id));
-    appData.calendars = normalized;
-    appData.events = appData.events.map((event) => ({
-      ...event,
-      calendarId: validIds.has(event.calendarId) ? event.calendarId : DataModel.DEFAULT_CALENDAR_ID
-    }));
-    persistData();
-    return appData.calendars;
-  });
-
   ipcMain.handle('settings:update', (_event, patch) => {
     appData.settings = { ...appData.settings, ...(patch || {}) };
     if (Object.hasOwn(patch || {}, 'startOnBoot')) applyLoginItem();

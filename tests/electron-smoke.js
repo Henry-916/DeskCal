@@ -35,7 +35,6 @@ async function run() {
         chineseSettingToggles: document.querySelectorAll(
           '#lunarToggle, #traditionalFestivalToggle, #solarTermToggle, #officialHolidayToggle, #holidayBadgeToggle, #weekendHighlightToggle'
         ).length,
-        calendarChips: document.querySelectorAll('#calendarStrip .calendar-chip').length,
         emptyState: document.querySelector('.empty-state strong')?.textContent
       };
 
@@ -48,7 +47,6 @@ async function run() {
       const interval = document.querySelector('#eventRepeatInterval');
       const until = document.querySelector('#eventRepeatUntil');
       const reminders = [...document.querySelectorAll('#eventReminderOptions input')];
-      const eventCalendarOptions = document.querySelectorAll('#eventCalendar option').length;
 
       title.value = 'Electron 冒烟测试';
       location.value = '测试会议室';
@@ -173,7 +171,6 @@ async function run() {
           !document.querySelector('#repeatIntervalField').classList.contains('hidden'),
         agendaItems: agendaItemsAfterCreate,
         agendaText: agendaTextAfterCreate,
-        eventCalendarOptions,
         quickEditOpened,
         searchResultCount,
         weekViewCells,
@@ -213,8 +210,6 @@ async function run() {
   assert.match(result.agendaText, /测试会议室/);
 
   assert.equal(result.brandIconLoaded, true, 'brand icon asset should load');
-  assert.equal(result.calendarChips, 1, 'default calendar filter should be rendered');
-  assert.equal(result.eventCalendarOptions, 1, 'event form should expose the default calendar');
   assert.equal(result.quickEditOpened, true, 'clicking an agenda item should open quick edit');
   assert.equal(result.searchResultCount, 1, 'search should find the newly created event');
   assert.equal(result.weekViewCells, 7, 'week view should render seven day cells');
@@ -276,7 +271,7 @@ async function run() {
     })()
   `);
 
-  assert.equal(colorResult.plainColor, colorResult.calendarColor, '没选过颜色的日程应跟随日历颜色');
+  assert.equal(colorResult.plainColor, colorResult.calendarColor, '没选过颜色的日程应使用默认颜色');
   assert.equal(colorResult.customColor, '#ff0000', '选过颜色的日程应使用自己的颜色');
   assert.equal(colorResult.shownWithCustomColor, true, '界面上应显示日程自己的颜色');
 

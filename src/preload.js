@@ -3,7 +3,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('deskcal', {
   getState: () => ipcRenderer.invoke('app:get-state'),
   saveEvents: (events) => ipcRenderer.invoke('events:save', events),
-  saveCalendars: (calendars) => ipcRenderer.invoke('calendars:save', calendars),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   windowAction: (action) => ipcRenderer.invoke('window:action', action),
   setInteractive: (value) => ipcRenderer.send('window:interactive', Boolean(value)),

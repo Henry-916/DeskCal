@@ -104,8 +104,6 @@
             <button class="filter-pill" data-filter="upcoming">七天</button>
           </div>
 
-          <div id="calendarStrip" class="calendar-strip quiet" aria-label="日历筛选"></div>
-
           <div id="agendaList" class="agenda-list"></div>
         </aside>
       </main>
@@ -185,24 +183,11 @@
             </select>
           </label>
           <label class="field">
-            <span>日历</span>
-            <select id="eventCalendar"></select>
-          </label>
-          <label class="field">
-            <span>分类</span>
-            <select id="eventCategory">
-              <option value="work">工作</option>
-              <option value="study">学习</option>
-              <option value="life">生活</option>
-              <option value="important">重要</option>
-            </select>
-          </label>
-          <label class="field">
             <span>颜色</span>
             <div class="color-picker">
               <input id="eventColor" type="color" value="#6750e8" />
-              <span id="eventColorText">跟随日历</span>
-              <button id="eventColorReset" type="button" class="link-button hidden">跟随日历</button>
+              <span id="eventColorText">默认颜色</span>
+              <button id="eventColorReset" type="button" class="link-button hidden">恢复默认</button>
             </div>
           </label>
         </div>
@@ -214,8 +199,16 @@
             <label><input type="checkbox" value="5" />提前5分钟</label>
             <label><input type="checkbox" value="10" checked />提前10分钟</label>
             <label><input type="checkbox" value="30" />提前30分钟</label>
-            <label><input type="checkbox" value="60" />提前1小时</label>
-            <label><input type="checkbox" value="1440" />提前1天</label>
+          </div>
+          <div class="reminder-custom">
+            <span>自定义：提前</span>
+            <input id="customReminderAmount" type="number" min="1" max="10080" aria-label="自定义提醒时长" />
+            <select id="customReminderUnit" aria-label="自定义提醒单位">
+              <option value="1">分钟</option>
+              <option value="60">小时</option>
+              <option value="1440">天</option>
+            </select>
+            <button id="customReminderAdd" type="button" class="secondary-button">添加</button>
           </div>
         </div>
 
@@ -313,17 +306,6 @@
             <button type="button" data-theme="light">浅色</button>
             <button type="button" data-theme="dark">深色</button>
           </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-section-heading">
-            <div>
-              <h3>我的日历</h3>
-              <p>用独立颜色区分工作、生活和其他安排</p>
-            </div>
-            <button id="addCalendarButton" type="button" class="secondary-button">新建日历</button>
-          </div>
-          <div id="calendarManagerList" class="calendar-manager-list"></div>
         </div>
 
         <div class="settings-section">
