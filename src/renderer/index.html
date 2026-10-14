@@ -105,6 +105,10 @@
           </div>
           <input type="hidden" id="eventId" />
           <input id="eventTitle" class="name" maxlength="100" placeholder="日程名称" aria-label="日程名称" required />
+          <div class="pairrow">
+            <label class="fl"><span>日期</span><input id="eventDate" type="date" required /></label>
+            <label class="check"><input id="eventAllDay" type="checkbox" />全天</label>
+          </div>
           <div class="trip time-field">
             <label><span class="cap">开始</span><input id="eventStartTime" class="clock" type="time" value="09:00" required /></label>
             <span class="arrow">→</span>
@@ -113,9 +117,10 @@
           <div class="trip all-day-time-field hidden">
             <div><span class="cap">时间</span><span class="allday-word">全天</span></div>
           </div>
-          <div class="pairrow">
-            <label class="fl"><span>日期</span><input id="eventDate" type="date" required /></label>
-            <label class="check"><input id="eventAllDay" type="checkbox" />全天</label>
+          <div class="remrow">
+            <label class="check"><input id="eventReminderOn" type="checkbox" />提醒</label>
+            <div id="eventAllDayReminderLine" class="remline hidden"><span>当天</span><input id="eventAllDayReminderTime" type="time" value="09:00" aria-label="全天日程的提醒时间" /></div>
+            <div id="eventReminderLine" class="remline"><select id="eventReminderSelect" aria-label="提醒时间"></select></div>
           </div>
           <label class="fl"><span>地点</span><input id="eventLocation" maxlength="200" placeholder="例如：三楼会议室或线上会议" /></label>
           <label class="fl"><span>备注</span><textarea id="eventNotes" rows="2" maxlength="500" placeholder="添加会议链接或补充说明"></textarea></label>
@@ -151,11 +156,6 @@
             </select>
           </label>
           <div class="fl"><span>颜色</span><div id="eventColors" class="colors"></div></div>
-          <div class="fl">
-            <label class="check"><input id="eventReminderOn" type="checkbox" />提醒</label>
-            <div id="eventAllDayReminderLine" class="remline hidden"><span>当天</span><input id="eventAllDayReminderTime" type="time" value="09:00" aria-label="全天日程的提醒时间" /></div>
-            <div id="eventReminderLine" class="remline"><select id="eventReminderSelect" aria-label="提醒时间"></select></div>
-          </div>
           <div class="foot">
             <button type="submit" class="btn primary big">保存日程</button>
             <button type="button" class="btn ghost big" data-close-dialog="eventDialog">取消</button>

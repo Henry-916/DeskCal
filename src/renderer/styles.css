@@ -373,7 +373,9 @@ html.theme-fx::view-transition-old(appwin) { -webkit-mask-image: conic-gradient(
 .reprow .custom { min-height: 30px; flex-wrap: nowrap; }
 .tk .vA .custom input { width: 46px; min-height: 28px; }
 .tk .vA .custom select { width: auto; min-height: 28px; }
-.remline { display: flex; align-items: center; gap: 10px; padding-left: 24px; font-size: 13px; color: var(--mut); }
+.remrow { display: flex; align-items: center; gap: 16px; min-height: 30px; }
+.remrow .check { align-self: center; }
+.remline { display: flex; align-items: center; gap: 10px; width: 200px; font-size: 13px; color: var(--mut); }
 .remline > select { flex: 1; min-width: 0; text-overflow: ellipsis; }
 .remline > span { white-space: nowrap; }
 .tk .vA .remline > input { flex: 1; min-width: 0; }
