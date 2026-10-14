@@ -339,6 +339,8 @@ html.theme-fx::view-transition-old(appwin) { -webkit-mask-image: conic-gradient(
   -webkit-mask: radial-gradient(circle 10px at calc(100% - var(--stub)) 0, transparent 97%, #000 100%), radial-gradient(circle 10px at calc(100% - var(--stub)) 100%, transparent 97%, #000 100%);
   -webkit-mask-composite: source-in;
   mask: radial-gradient(circle 10px at calc(100% - var(--stub)) 0, transparent 97%, #000 100%), radial-gradient(circle 10px at calc(100% - var(--stub)) 100%, transparent 97%, #000 100%); mask-composite: intersect; }
+/* 勾“全天”会收起时间那一块：把高度定在有时间时的高度，省下的地方让给备注，弹窗不跟着跳 */
+.tk dialog form.vA { min-height: 463px; }
 .vA .main { display: flex; flex-direction: column; gap: 16px; padding: 18px 22px 22px; min-width: 0; border-top: 6px solid var(--c); }
 .vA .stub { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 22px; border-left: 2px dashed var(--rule); min-width: 0; border-top: 6px solid var(--c); }
 .thead { display: flex; align-items: center; gap: 10px; }
