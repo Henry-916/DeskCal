@@ -347,7 +347,6 @@ html.theme-fx::view-transition-old(appwin) { -webkit-mask-image: conic-gradient(
 .trip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 14px; }
 .trip > label, .trip > div { display: flex; flex-direction: column; }
 .trip .arrow { font: 400 26px/1.6 var(--bodoni); color: var(--mut); }
-.allday-word { font: 900 34px/46px var(--song); margin-right: 14px; }
 .pairrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
 .fl { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .fl > span:first-child { font-size: 12px; color: var(--mut); }

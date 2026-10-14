@@ -1286,7 +1286,6 @@ function openEventDialog(eventId = null, date = state.selectedDate) {
 function toggleTimeFields() {
   const allDay = $('#eventAllDay').checked;
   $all('.time-field').forEach((field) => field.classList.toggle('hidden', allDay));
-  $all('.all-day-time-field').forEach((field) => field.classList.toggle('hidden', !allDay));
   $('#eventStartTime').required = !allDay;
   $('#eventEndTime').required = !allDay;
   syncReminderLine();
