@@ -735,10 +735,23 @@ async function run() {
       const reminderTurnedOff = !$('#eventReminderOn').checked;
       $('#eventDialog').close();
 
+      // 用例 5：全天日程的提醒时刻跟着“提醒”走，不提醒或不是全天时不出现
+      openEventDialog(null, state.selectedDate);
+      const allDayTimeShown = () => !$('#eventAllDayReminderLine').classList.contains('hidden');
+      const allDayTimeStates = [allDayTimeShown()];
+      $('#eventAllDay').click();
+      allDayTimeStates.push(allDayTimeShown());
+      $('#eventReminderOn').click();
+      allDayTimeStates.push(allDayTimeShown());
+      $('#eventReminderOn').click();
+      allDayTimeStates.push(allDayTimeShown());
+      $('#eventDialog').close();
+
       return {
         reminderPageOpened,
         reminderLineText,
         reminderTurnedOff,
+        allDayTimeStates,
         scenario1Reminders,
         scenario2Reminders,
         scenario3DynamicCount: dynamicOptions.length,
@@ -751,7 +764,12 @@ async function run() {
   assert.equal(f16Result.reminderLineText, '提前2小时', '自定义时长应显示在表单的下拉框里');
   assert.deepEqual(f16Result.scenario1Reminders, [120], '自定义提前2小时保存后的 reminders 应为 [120]');
   assert.equal(f16Result.reminderTurnedOff, true, '提醒时间页里一个都不选就关掉，应关闭提醒');
-  assert.deepEqual(f16Result.scenario2Reminders, [15, 120], '已有 [15, 120] 提醒的日程保存后仍应为 [15, 120]');
+  assert.deepEqual(
+    f16Result.allDayTimeStates,
+    [false, true, false, true],
+    '全天日程的提醒时刻只在“全天”且“提醒”都勾上时出现'
+  );
+  assert.deepEqual(f16Result.scenario2Reminders, [15, 120],'已有 [15, 120] 提醒的日程保存后仍应为 [15, 120]');
   assert.equal(f16Result.scenario3DynamicCount, 0, '新建日程时动态选项应被移除');
   assert.equal(f16Result.scenario3Has15Or120, false, '新建日程表单里不应出现 15 和 120 选项');
 

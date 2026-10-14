@@ -1168,7 +1168,10 @@ function pickedReminders() {
 function syncReminderLine() {
   const picked = pickedReminders();
   const single = picked.length === 1 && isPresetReminder(picked[0]);
-  $('#eventReminderLine').classList.toggle('hidden', !$('#eventReminderOn').checked);
+  const on = $('#eventReminderOn').checked;
+  $('#eventReminderLine').classList.toggle('hidden', !on);
+  // 全天日程没有开始时间，提醒以当天的这个时刻为准；不提醒时不用选
+  $('#eventAllDayReminderLine').classList.toggle('hidden', !on || !$('#eventAllDay').checked);
   $('#eventReminderSelect').innerHTML =
     PRESET_REMINDERS.map(([value, text]) => `<option value="${value}">${text}</option>`).join('') +
     (single
@@ -1285,6 +1288,7 @@ function toggleTimeFields() {
   $all('.all-day-time-field').forEach((field) => field.classList.toggle('hidden', !allDay));
   $('#eventStartTime').required = !allDay;
   $('#eventEndTime').required = !allDay;
+  syncReminderLine();
 }
 
 function toggleRecurrenceFields() {

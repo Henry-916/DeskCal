@@ -375,6 +375,8 @@ html.theme-fx::view-transition-old(appwin) { -webkit-mask-image: conic-gradient(
 .tk .vA .custom select { width: auto; min-height: 28px; }
 .remline { display: flex; align-items: center; gap: 10px; padding-left: 24px; font-size: 13px; color: var(--mut); }
 .remline > select { flex: 1; min-width: 0; text-overflow: ellipsis; }
+.remline > span { white-space: nowrap; }
+.tk .vA .remline > input { flex: 1; min-width: 0; }
 .vA .main > .fl:has(textarea) { flex: 1; }
 .vA .main textarea { flex: 1; }
 .vA .stub .foot { margin-top: auto; padding-top: 4px; flex-direction: column; align-items: stretch; gap: 10px; }

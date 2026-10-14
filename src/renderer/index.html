@@ -112,7 +112,6 @@
           </div>
           <div class="trip all-day-time-field hidden">
             <div><span class="cap">时间</span><span class="allday-word">全天</span></div>
-            <label><span class="cap">提醒时间</span><input id="eventAllDayReminderTime" class="clock" type="time" value="09:00" /></label>
           </div>
           <div class="pairrow">
             <label class="fl"><span>日期</span><input id="eventDate" type="date" required /></label>
@@ -154,6 +153,7 @@
           <div class="fl"><span>颜色</span><div id="eventColors" class="colors"></div></div>
           <div class="fl">
             <label class="check"><input id="eventReminderOn" type="checkbox" />提醒</label>
+            <div id="eventAllDayReminderLine" class="remline hidden"><span>当天</span><input id="eventAllDayReminderTime" type="time" value="09:00" aria-label="全天日程的提醒时间" /></div>
             <div id="eventReminderLine" class="remline"><select id="eventReminderSelect" aria-label="提醒时间"></select></div>
           </div>
           <div class="foot">
