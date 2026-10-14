@@ -687,9 +687,9 @@ async function run() {
         id: 'f16-custom-reminders',
         title: 'F16 自定义提醒日程',
         date: state.selectedDate,
-        allDay: true,
-        startTime: '',
-        endTime: '',
+        allDay: false,
+        startTime: '13:00',
+        endTime: '14:00',
         allDayReminderTime: '09:00',
         reminders: [15, 120],
         recurrence: { frequency: 'none', interval: 1, until: null, count: null },
@@ -737,7 +737,9 @@ async function run() {
 
       // 用例 5：全天日程的提醒时刻跟着“提醒”走，不提醒或不是全天时不出现
       openEventDialog(null, state.selectedDate);
-      const allDayTimeShown = () => !$('#eventAllDayReminderLine').classList.contains('hidden');
+      const allDayTimeShown = () =>
+        !$('#eventAllDayReminderLine').classList.contains('hidden') &&
+        $('#eventReminderLine').classList.contains('hidden');
       const allDayTimeStates = [allDayTimeShown()];
       $('#eventAllDay').click();
       allDayTimeStates.push(allDayTimeShown());
@@ -745,13 +747,22 @@ async function run() {
       allDayTimeStates.push(allDayTimeShown());
       $('#eventReminderOn').click();
       allDayTimeStates.push(allDayTimeShown());
-      $('#eventDialog').close();
+      // 全天日程保存下来只有“准时”一个提醒，时刻就是选的那个
+      $('#eventTitle').value = '全天提醒';
+      $('#eventReminderSelect').value = '30';
+      $('#eventReminderSelect').dispatchEvent(new Event('change', { bubbles: true }));
+      $('#eventAllDayReminderTime').value = '08:30';
+      $('#eventForm').requestSubmit();
+      await wait(50);
+      const allDaySaved = state.events.find((e) => e.title === '全天提醒');
+      const allDayReminder = [allDaySaved?.allDayReminderTime, allDaySaved?.reminders];
 
       return {
         reminderPageOpened,
         reminderLineText,
         reminderTurnedOff,
         allDayTimeStates,
+        allDayReminder,
         scenario1Reminders,
         scenario2Reminders,
         scenario3DynamicCount: dynamicOptions.length,
@@ -767,9 +778,10 @@ async function run() {
   assert.deepEqual(
     f16Result.allDayTimeStates,
     [false, true, false, true],
-    '全天日程的提醒时刻只在“全天”且“提醒”都勾上时出现'
+    '“全天”且“提醒”都勾上时只出现提醒时刻，不出现提前量下拉框'
   );
-  assert.deepEqual(f16Result.scenario2Reminders, [15, 120],'已有 [15, 120] 提醒的日程保存后仍应为 [15, 120]');
+  assert.deepEqual(f16Result.allDayReminder, ['08:30', [0]], '全天日程应在所选时刻准时提醒，不带提前量');
+  assert.deepEqual(f16Result.scenario2Reminders, [15, 120], '已有 [15, 120] 提醒的日程保存后仍应为 [15, 120]');
   assert.equal(f16Result.scenario3DynamicCount, 0, '新建日程时动态选项应被移除');
   assert.equal(f16Result.scenario3Has15Or120, false, '新建日程表单里不应出现 15 和 120 选项');
 

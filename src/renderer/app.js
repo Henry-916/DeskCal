@@ -1169,9 +1169,10 @@ function syncReminderLine() {
   const picked = pickedReminders();
   const single = picked.length === 1 && isPresetReminder(picked[0]);
   const on = $('#eventReminderOn').checked;
-  $('#eventReminderLine').classList.toggle('hidden', !on);
-  // 全天日程没有开始时间，提醒以当天的这个时刻为准；不提醒时不用选
-  $('#eventAllDayReminderLine').classList.toggle('hidden', !on || !$('#eventAllDay').checked);
+  const allDay = $('#eventAllDay').checked;
+  // 全天日程没有开始时间，只选当天几点提醒，不再选提前多久
+  $('#eventReminderLine').classList.toggle('hidden', !on || allDay);
+  $('#eventAllDayReminderLine').classList.toggle('hidden', !on || !allDay);
   $('#eventReminderSelect').innerHTML =
     PRESET_REMINDERS.map(([value, text]) => `<option value="${value}">${text}</option>`).join('') +
     (single
@@ -1363,7 +1364,8 @@ async function saveEventForm() {
     startTime: $('#eventAllDay').checked ? '' : $('#eventStartTime').value,
     endTime: $('#eventAllDay').checked ? '' : $('#eventEndTime').value,
     allDayReminderTime: $('#eventAllDayReminderTime').value || '09:00',
-    reminders: $('#eventReminderOn').checked ? pickedReminders() : [],
+    // 全天日程就在选的那个时刻提醒，不带提前量
+    reminders: !$('#eventReminderOn').checked ? [] : $('#eventAllDay').checked ? [0] : pickedReminders(),
     recurrence: {
       frequency,
       interval: frequency === 'weekdays' ? 1 : Number($('#eventRepeatInterval').value) || 1,
