@@ -1173,6 +1173,7 @@ function syncReminderLine() {
   // 全天日程没有开始时间，只选当天几点提醒，不再选提前多久
   $('#eventReminderLine').classList.toggle('hidden', !on || allDay);
   $('#eventAllDayReminderLine').classList.toggle('hidden', !on || !allDay);
+  $('#eventReminderRow').classList.toggle('allday', allDay);
   $('#eventReminderSelect').innerHTML =
     PRESET_REMINDERS.map(([value, text]) => `<option value="${value}">${text}</option>`).join('') +
     (single
@@ -1215,6 +1216,16 @@ function setEventColor(color) {
       /^#[0-9a-f]{6}$/i.test(color) ? color : EVENT_COLORS[0]
     }" aria-label="自定义颜色" /></label>` +
     `<output class="hex" id="eventColorText">${preset ? '' : escapeHtml(color.toUpperCase())}</output>`;
+}
+
+// 存根里的预览：这条日程在周历和月历上的样子，颜色跟着表单的 --c 走
+function syncEventPreview() {
+  const title = escapeHtml($('#eventTitle').value.trim() || '日程名称');
+  const allDay = $('#eventAllDay').checked;
+  const time = escapeHtml(allDay ? '全天' : $('#eventStartTime').value || '--:--');
+  $('#eventPreview').innerHTML =
+    `<span>周历</span><span class="ticket ${allDay ? 'all' : ''}"><span class="t"><span>${time}</span></span><span class="ti">${title}</span></span>` +
+    `<span>月历</span><span class="mini">${title}</span>`;
 }
 
 function resetEventForm(date = state.selectedDate) {
@@ -1279,6 +1290,7 @@ function openEventDialog(eventId = null, date = state.selectedDate) {
   toggleTimeFields();
   toggleRecurrenceFields();
   previewEventConflict();
+  syncEventPreview();
   $('#eventDialog').showModal();
   requestAnimationFrame(() => $('#eventTitle').focus());
 }
@@ -1766,6 +1778,7 @@ function bindEvents() {
     picker.style.setProperty('--c', state.formColor);
     $('#eventColors .hex').textContent = state.formColor.toUpperCase();
   });
+  $('#eventForm').addEventListener('input', syncEventPreview);
   $('#eventReminderOn').addEventListener('change', syncReminderLine);
   $('#eventReminderSelect').addEventListener('change', () => {
     const value = $('#eventReminderSelect').value;

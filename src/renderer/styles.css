@@ -376,6 +376,12 @@ html.theme-fx::view-transition-old(appwin) { -webkit-mask-image: conic-gradient(
 .tk .vA .custom select { width: auto; min-height: 28px; }
 .remrow { display: flex; align-items: center; gap: 16px; min-height: 30px; }
 .remrow .check { align-self: center; }
+/* 全天日程没有“开始 → 结束”，提醒的时刻顶上来用大字；这一行的高度不随勾选变 */
+.remrow.allday { min-height: 64px; align-items: flex-end; gap: 22px; }
+.remrow.allday .check { align-self: flex-end; margin-bottom: 8px; }
+.remclock { display: flex; flex-direction: column; }
+.pv { display: grid; grid-template-columns: auto 104px; align-items: center; justify-content: start; gap: 8px 12px; padding: 6px 2px 0; font-size: 12px; color: var(--mut); pointer-events: none; }
+.tk .pv :is(.ticket, .mini) { color: var(--ink); background: color-mix(in srgb, var(--c) 58%, transparent); }
 .remline { display: flex; align-items: center; gap: 10px; width: 200px; font-size: 13px; color: var(--mut); }
 .remline > select { flex: 1; min-width: 0; text-overflow: ellipsis; }
 .remline > span { white-space: nowrap; }
