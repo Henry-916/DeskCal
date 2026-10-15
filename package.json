@@ -19,13 +19,13 @@
   ],
   "author": "DeskCal",
   "license": "MIT",
-  "homepage": "https://github.com/kangkangStudent/DeskCal#readme",
+  "homepage": "https://github.com/Henry-916/DeskCal#readme",
   "bugs": {
-    "url": "https://github.com/kangkangStudent/DeskCal/issues"
+    "url": "https://github.com/Henry-916/DeskCal/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kangkangStudent/DeskCal.git"
+    "url": "git+https://github.com/Henry-916/DeskCal.git"
   },
   "config": {
     "electron_mirror": "https://npmmirror.com/mirrors/electron/"
