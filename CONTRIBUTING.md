@@ -24,8 +24,12 @@ npm run smoke
 - 一个 Pull Request 尽量只解决一个问题。
 - 保持现有代码风格，并为新增核心逻辑补充测试。
 - 不要提交 `release/`、`node_modules/`、用户日历数据或任何密钥。
-- 用户可见的变更应同步更新 README 或发布说明。
+- 用户可见的变更应同步更新 README 或 CHANGELOG。
 - Pull Request 中请说明改动目的、验证方式，以及涉及界面时的截图。
+
+## 发布新版本
+
+用 `npm run dist:win` 打包，产物在 `release/`。GitHub Release 里要同时上传安装包、`latest.yml` 和 `.exe.blockmap`，标签用 `v` 加版本号（如 `v0.9.1`）。应用内更新靠 `latest.yml` 发现新版本并校验安装包，缺了它已安装的用户就收不到更新。
 
 ## 报告问题
 
